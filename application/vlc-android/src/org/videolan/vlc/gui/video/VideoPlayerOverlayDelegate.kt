@@ -446,6 +446,12 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
             if (player.isInPictureInPictureMode) return
             initOverlay()
             if (!::hudBinding.isInitialized) return
+            // MX style HUD replaces the stock controls: never show this overlay in MX mode,
+            // otherwise the two control layers are stacked on top of each other.
+            if (player.isMxControlsEnabled()) {
+                dismissForMxMode()
+                return
+            }
             overlayTimeout = when {
                 service.playlistManager.videoStatsOn.value == true -> VideoPlayerActivity.OVERLAY_INFINITE
                 player.isTalkbackIsEnabled() -> VideoPlayerActivity.OVERLAY_INFINITE
@@ -1032,6 +1038,25 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
              */
             dimStatusBar(true)
         }
+    }
+
+    /**
+     * Force the stock controls out of the way when the MX layer takes over.
+     *
+     * The stock HUD and the MX HUD are separate view trees, so leaving the stock one on screen
+     * results in two control bars stacked on top of each other. Safe to call at any time.
+     */
+    fun dismissForMxMode() {
+        player.handler.removeMessages(VideoPlayerActivity.FADE_OUT)
+        if (::hudBinding.isInitialized) {
+            hudBinding.progressOverlay.setInvisible()
+            hudBackground.setInvisible()
+        }
+        if (::hudRightBinding.isInitialized) hudRightBinding.hudRightOverlay.setInvisible()
+        if (!player.isShowing) return
+        showControls(false)
+        player.isShowing = false
+        dimStatusBar(true)
     }
 
     fun focusPlayPause() {

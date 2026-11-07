@@ -319,6 +319,16 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
     internal var fov: Float = 0.toFloat()
     lateinit var touchDelegate: VideoTouchDelegate
     lateinit var mxGestureDelegate: MxGestureDelegate
+
+    /**
+     * True when the MX style layer owns the player HUD.
+     *
+     * The stock overlay and the MX overlay are two independent view trees, so the stock one
+     * has to stay completely hidden while MX mode is on, otherwise both control bars are
+     * visible at the same time and the stock one looks like a dimmed ghost behind the MX bar.
+     */
+    internal fun isMxControlsEnabled(): Boolean =
+            ::mxGestureDelegate.isInitialized && mxGestureDelegate.isEnabled()
     val statsDelegate: VideoStatsDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoStatsDelegate(this, { overlayDelegate.showOverlayTimeout(OVERLAY_INFINITE) }, { overlayDelegate.showOverlay(true) }) }
     val delayDelegate: VideoDelayDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoDelayDelegate(this@VideoPlayerActivity) }
     val screenshotDelegate: VideoPlayerScreenshotDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoPlayerScreenshotDelegate(this@VideoPlayerActivity) }
@@ -674,6 +684,9 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
                     overlayDelegate.togglePlaylist()
                 } else if (isPlaybackSettingActive) {
                     delayDelegate.endPlaybackSetting()
+                } else if (isMxControlsEnabled() && mxGestureDelegate.isControlsVisible()) {
+                    // In MX mode the stock "isShowing" flag is never set, so collapse our own bars first.
+                    mxGestureDelegate.hideControls()
                 } else if (isShowing && service?.playlistManager?.videoStatsOn?.value == true) {
                     //hides video stats if they are displayed
                     service?.playlistManager?.videoStatsOn?.postValue(false)
@@ -1820,7 +1833,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (service == null) return false
-        return if (::mxGestureDelegate.isInitialized && mxGestureDelegate.isEnabled()) {
+        return if (isMxControlsEnabled()) {
             mxGestureDelegate.onTouchEvent(event)
         } else {
             touchDelegate.onTouchEvent(event)

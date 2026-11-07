@@ -143,6 +143,9 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
     fun show() {
         if (!mxEnabled) return
+        // Make sure the stock VLC controls never stay visible underneath this layer.
+        // Guarded by isShowing so the overlay delegate is not touched before it is used.
+        if (player.isShowing) player.overlayDelegate.dismissForMxMode()
         handler.removeCallbacks(hideRunnable)
         bars.forEach { bar ->
             bar.visibility = View.VISIBLE
@@ -167,8 +170,10 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         }
     }
 
+    fun isVisible() = topBar.visibility == View.VISIBLE
+
     fun toggle() {
-        if (topBar.visibility == View.VISIBLE) hide() else show()
+        if (isVisible()) hide() else show()
     }
 
     fun setMxEnabled(enabled: Boolean) {

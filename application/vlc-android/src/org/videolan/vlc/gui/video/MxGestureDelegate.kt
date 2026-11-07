@@ -156,6 +156,10 @@ class MxGestureDelegate(
 
     fun isEnabled() = enabled
 
+    fun isControlsVisible() = enabled && controls.isVisible()
+
+    fun hideControls() = controls.hide()
+
     fun reloadSettings() {
         val prefs = Settings.getInstance(player)
         enabled = prefs.getBoolean(MX_GESTURE_MODE, true)
