@@ -47,6 +47,13 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     companion object {
         /** Speeds offered by the MX speed sheet. */
         private val SPEEDS = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
+
+        /**
+         * Preset order followed by the single tap cycle on the ratio button: auto, fit, fill,
+         * 16:9, 4:3, 1:1, 9:16, 21:9, original. The custom ratio (index 9) is only reachable
+         * through the long press menu.
+         */
+        private val RATIO_CYCLE = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8)
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -71,6 +78,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private var lastCustomRatio = "9:16"
     private var jumpSeconds = 60
     private var repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE
+    private var ratioIndex = 0
 
     private val hideRunnable = Runnable { hide() }
     private val ticker = object : Runnable {
@@ -99,7 +107,16 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         root.findViewById<View>(R.id.mx_play).setOnClickListener { togglePlayPause() }
         root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-jumpSeconds) }
         root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(jumpSeconds) }
-        root.findViewById<View>(R.id.mx_ratio).setOnClickListener { showRatioMenu() }
+        // Single tap cycles the presets (same idea as the stock VLC ratio toggle),
+        // long press opens the full list including the custom ratio entry.
+        root.findViewById<View>(R.id.mx_ratio).apply {
+            setOnClickListener { cycleRatio() }
+            setOnLongClickListener {
+                showRatioMenu()
+                true
+            }
+            contentDescription = player.getString(R.string.mx_ratio_long_press)
+        }
         root.findViewById<View>(R.id.mx_rotate).setOnClickListener { rotateScreen() }
         root.findViewById<View>(R.id.mx_repeat).setOnClickListener { cycleRepeatMode() }
         root.findViewById<View>(R.id.mx_tracks).setOnClickListener {
@@ -307,18 +324,32 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
      */
     private fun showRatioMenu() {
         show()
-        val labels = arrayOf(
-                player.getString(R.string.mx_ratio_auto),
-                player.getString(R.string.mx_ratio_fit),
-                player.getString(R.string.mx_ratio_fill),
-                "16:9", "4:3", "1:1", "9:16", "21:9",
-                player.getString(R.string.mx_ratio_original),
-                player.getString(R.string.mx_ratio_custom))
         AlertDialog.Builder(player)
                 .setTitle(R.string.aspect_ratio)
-                .setItems(labels) { _, which -> applyRatioOption(which) }
+                .setSingleChoiceItems(ratioLabels(), ratioIndex) { dialog, which ->
+                    dialog.dismiss()
+                    ratioIndex = which
+                    applyRatioOption(which)
+                }
+                .setNegativeButton(android.R.string.cancel, null)
                 .show()
     }
+
+    /** Single tap on the ratio button: move to the next preset and show it as a hint. */
+    private fun cycleRatio() {
+        val position = RATIO_CYCLE.indexOf(ratioIndex)
+        val next = RATIO_CYCLE[(position + 1) % RATIO_CYCLE.size]
+        ratioIndex = next
+        applyRatioOption(next)
+    }
+
+    private fun ratioLabels(): Array<String> = arrayOf(
+            player.getString(R.string.mx_ratio_auto),
+            player.getString(R.string.mx_ratio_fit),
+            player.getString(R.string.mx_ratio_fill),
+            "16:9", "4:3", "1:1", "9:16", "21:9",
+            player.getString(R.string.mx_ratio_original),
+            player.getString(R.string.mx_ratio_custom))
 
     private fun applyRatioOption(index: Int) {
         when (index) {

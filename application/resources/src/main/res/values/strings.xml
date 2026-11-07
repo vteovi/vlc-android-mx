@@ -1499,4 +1499,6 @@
     <string name="mx_ratio_custom_message">Enter a ratio as width:height, for example 9:16 for vertical videos.</string>
     <string name="mx_ratio_invalid">Invalid ratio, use the form width:height</string>
     <string name="mx_ratio_applied">Ratio %1$s</string>
+    <string name="mx_ratio">Picture ratio</string>
+    <string name="mx_ratio_long_press">Picture ratio, long press to choose</string>
 </resources>
