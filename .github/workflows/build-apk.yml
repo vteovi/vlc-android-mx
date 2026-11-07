@@ -1,0 +1,84 @@
+name: Build MX-style VLC APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'application/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'buildsystem/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: assembleDebug on GitHub runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      ANDROID_NDK_VERSION: 27.0.12077973
+      GRADLE_VERSION: 9.6.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK components (API 36 / build-tools 36 / NDK)
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;${ANDROID_NDK_VERSION}" > /dev/null
+          echo "Installed SDK packages:"
+          sdkmanager --list_installed | grep -E "android-36|build-tools;36|ndk;${ANDROID_NDK_VERSION}" || true
+
+      # The upstream root build.gradle reads local.properties unconditionally during
+      # configuration. compile.sh --init is NOT used here because it clones the full
+      # VLC native source tree (several GB) which is unnecessary for a Debug build:
+      # Debug/Release resolve libvlc-all and medialibrary-all from Maven Central.
+      - name: Generate local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+          android.ndkPath=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}
+          android.ndkFullVersion=${ANDROID_NDK_VERSION}
+          EOF
+          cat local.properties
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Build debug APK
+        run: |
+          gradle --version
+          gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g assembleDebug
+
+      - name: Collect APK files
+        run: |
+          mkdir -p apk-out
+          find application/app/build/outputs -name "*.apk" -type f -exec cp {} apk-out/ \; || true
+          ls -lh apk-out
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlc-mx-debug-apk
+          path: apk-out/*.apk
+          if-no-files-found: error
+          retention-days: 30
