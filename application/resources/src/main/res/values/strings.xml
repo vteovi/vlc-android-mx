@@ -1511,4 +1511,6 @@
     <string name="mx_rotation_auto">Auto (follow device)</string>
     <string name="mx_rotation_reverse_portrait">Reverse portrait</string>
     <string name="mx_rotation_reverse_landscape">Reverse landscape</string>
+    <string name="mx_shuffle">Shuffle</string>
+    <string name="mx_shuffle_unavailable">Not enough items to shuffle</string>
 </resources>

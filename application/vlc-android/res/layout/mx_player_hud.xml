@@ -79,28 +79,28 @@
 
         <ImageView
                 android:id="@+id/mx_ratio"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/aspect_ratio"
-                android:padding="10dp"
+                android:padding="9dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_player_ratio" />
 
         <ImageView
                 android:id="@+id/mx_rotate"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/mx_rotate"
-                android:padding="10dp"
+                android:padding="9dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_player_rotate" />
 
         <TextView
                 android:id="@+id/mx_speed"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:gravity="center"
                 android:text="@string/mx_speed_default"
@@ -110,31 +110,41 @@
 
         <ImageView
                 android:id="@+id/mx_repeat"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/mx_repeat"
-                android:padding="10dp"
+                android:padding="9dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_repeat" />
 
         <ImageView
+                android:id="@+id/mx_shuffle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_shuffle"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_player_shuffle" />
+
+        <ImageView
                 android:id="@+id/mx_tracks"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/tracks"
-                android:padding="10dp"
+                android:padding="9dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_subtitles" />
 
         <ImageView
                 android:id="@+id/mx_lock"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/lock"
-                android:padding="10dp"
+                android:padding="9dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_lock_player" />
     </LinearLayout>

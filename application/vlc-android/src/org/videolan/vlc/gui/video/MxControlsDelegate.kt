@@ -15,6 +15,8 @@
 package org.videolan.vlc.gui.video
 
 import android.content.pm.ActivityInfo
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.support.v4.media.session.PlaybackStateCompat
@@ -63,6 +65,9 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
         /** Sentinel used by the orientation menu to mean "follow the device sensor". */
         private const val ORIENTATION_AUTO = -1
+
+        /** Accent used to flag an active quick action, matching the speed label colour. */
+        private val ACTIVE_TINT = Color.rgb(0xFF, 0x8C, 0x00)
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -76,6 +81,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val lengthView: TextView = root.findViewById(R.id.mx_length)
     private val speedView: TextView = root.findViewById(R.id.mx_speed)
     private val repeatView: ImageView = root.findViewById(R.id.mx_repeat)
+    private val shuffleView: ImageView = root.findViewById(R.id.mx_shuffle)
     private val prevButton: ImageView = root.findViewById(R.id.mx_prev)
     private val nextButton: ImageView = root.findViewById(R.id.mx_next)
     private val rotateButton: View = root.findViewById(R.id.mx_rotate)
@@ -90,6 +96,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private var lastCustomRatio = "9:16"
     private var jumpSeconds = 60
     private var repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE
+    private var shuffling = false
     private var ratioIndex = 0
 
     private val hideRunnable = Runnable { hide() }
@@ -140,6 +147,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             }
         }
         root.findViewById<View>(R.id.mx_repeat).setOnClickListener { cycleRepeatMode() }
+        shuffleView.setOnClickListener { toggleShuffle() }
         root.findViewById<View>(R.id.mx_tracks).setOnClickListener {
             hide(true)
             player.overlayDelegate.showTracks()
@@ -255,6 +263,32 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         repeatView.contentDescription = player.getString(R.string.mx_repeat)
     }
 
+    /**
+     * Toggle playlist shuffle, the same switch the stock "shuffle" player option drives.
+     * Shuffling needs at least three items, so the button is dimmed when it cannot be used.
+     */
+    private fun toggleShuffle() {
+        val service = player.service ?: return
+        if (!service.canShuffle()) {
+            player.mxGestureDelegate.showHint(R.drawable.ic_player_shuffle,
+                    player.getString(R.string.mx_shuffle_unavailable))
+            show()
+            return
+        }
+        service.shuffle()
+        shuffling = service.isShuffling
+        updateShuffleIcon(shuffling)
+        val label = player.getString(if (shuffling) R.string.shuffle_on else R.string.shuffle)
+        player.mxGestureDelegate.showHint(R.drawable.ic_player_shuffle, label)
+        show()
+    }
+
+    private fun updateShuffleIcon(on: Boolean) {
+        // Active state is flagged with the orange accent, the icon itself stays the same.
+        shuffleView.imageTintList = ColorStateList.valueOf(if (on) ACTIVE_TINT else Color.WHITE)
+        shuffleView.contentDescription = player.getString(R.string.mx_shuffle)
+    }
+
     private fun switchToPopup() {
         hide(true)
         player.switchToPopup()
@@ -303,6 +337,11 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             repeatMode = service.repeatType
             updateRepeatIcon(repeatMode)
         }
+        // Shuffle can also be flipped from the stock options sheet, keep the icon in sync.
+        if (service.isShuffling != shuffling) {
+            shuffling = service.isShuffling
+            updateShuffleIcon(shuffling)
+        }
         val length = service.length
         val position = player.time
         timeView.text = formatTime(position)
@@ -315,6 +354,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         // Dim the playlist buttons when there is nothing to jump to.
         prevButton.alpha = if (service.hasPrevious()) 1f else 0.35f
         nextButton.alpha = if (service.hasNext()) 1f else 0.35f
+        shuffleView.alpha = if (service.canShuffle()) 1f else 0.35f
     }
 
     fun show() {

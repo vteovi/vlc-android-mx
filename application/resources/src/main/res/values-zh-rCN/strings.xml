@@ -1470,4 +1470,6 @@
     <string name="mx_rotation_auto">自动（跟随设备）</string>
     <string name="mx_rotation_reverse_portrait">反向竖屏</string>
     <string name="mx_rotation_reverse_landscape">反向横屏</string>
+    <string name="mx_shuffle">随机播放</string>
+    <string name="mx_shuffle_unavailable">列表项太少，无法随机播放</string>
     </resources>

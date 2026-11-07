@@ -1469,4 +1469,6 @@
     <string name="mx_rotation_auto">自動（跟隨裝置）</string>
     <string name="mx_rotation_reverse_portrait">反向直向</string>
     <string name="mx_rotation_reverse_landscape">反向橫向</string>
+    <string name="mx_shuffle">隨機播放</string>
+    <string name="mx_shuffle_unavailable">列表項目太少，無法隨機播放</string>
     </resources>
