@@ -57,6 +57,13 @@
         android:title="@string/show_hidden_folders_title"/>
 
     <CheckBoxPreference
+        app:singleLineTitle="false"
+        android:key="show_hidden_videos"
+        android:defaultValue="false"
+        android:summary="@string/show_hidden_videos_summary"
+        android:title="@string/show_hidden_videos_title"/>
+
+    <CheckBoxPreference
             app:singleLineTitle="false"
             android:key="include_missing"
             android:defaultValue="true"

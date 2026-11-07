@@ -27,12 +27,15 @@ import android.content.DialogInterface
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.InputType
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
 import androidx.preference.TwoStatePreference
+import kotlinx.coroutines.launch
 import org.videolan.medialibrary.Tools
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.resources.AndroidDevices
@@ -49,6 +52,7 @@ import org.videolan.tools.LIST_TITLE_ELLIPSIZE
 import org.videolan.tools.LocaleUtils
 import org.videolan.tools.PREF_TV_UI
 import org.videolan.tools.RESULT_UPDATE_SEEN_MEDIA
+import org.videolan.tools.SHOW_HIDDEN_VIDEOS
 import org.videolan.tools.SHOW_VIDEO_THUMBNAILS
 import org.videolan.tools.SLEEP_TIMER_DEFAULT_INTERVAL
 import org.videolan.tools.SLEEP_TIMER_DEFAULT_RESET_INTERACTION
@@ -59,6 +63,7 @@ import org.videolan.vlc.BuildConfig
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.dialogs.SleepTimerDialog
 import org.videolan.vlc.gui.helpers.UiTools
+import org.videolan.vlc.util.HiddenVideosSync
 
 
 class PreferencesUi : BasePreferenceFragment(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -179,6 +184,24 @@ class PreferencesUi : BasePreferenceFragment(), SharedPreferences.OnSharedPrefer
                 // Applies to the file browser right away, no restart needed.
                 Settings.showHiddenFiles = sharedPreferences.getBoolean(BROWSER_SHOW_HIDDEN_FILES, true)
             }
+            SHOW_HIDDEN_VIDEOS -> {
+                Settings.showHiddenVideos = sharedPreferences.getBoolean(SHOW_HIDDEN_VIDEOS, false)
+                syncHiddenVideos()
+            }
+        }
+    }
+
+    /** Registers (or drops) the videos of the hidden folders from the media library. */
+    private fun syncHiddenVideos() {
+        val enable = Settings.showHiddenVideos
+        lifecycleScope.launch {
+            val count = HiddenVideosSync.apply(requireContext(), enable)
+            val text = when {
+                count == 0 -> getString(R.string.hidden_videos_none)
+                enable -> getString(R.string.hidden_videos_added, count)
+                else -> getString(R.string.hidden_videos_removed, count)
+            }
+            Toast.makeText(requireContext(), text, Toast.LENGTH_LONG).show()
         }
     }
 

@@ -28,4 +28,11 @@
             android:icon="@drawable/ic_add_to_playlist"
             android:title="@string/add_to_playlist"
             app:showAsAction="always" />
+    <item
+            android:id="@+id/action_mode_select_all"
+            android:icon="@drawable/ic_select_all"
+            android:orderInCategory="10"
+            android:title="@string/select_all"
+            android:visible="false"
+            app:showAsAction="ifRoom" />
 </menu>

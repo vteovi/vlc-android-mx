@@ -57,6 +57,16 @@ class MultiSelectHelper<T>(val adapter: MultiSelectAdapter<T>, private val paylo
         adapter.notifyItemRangeChanged(min, 1 + max - min, payloadvalue)
     }
 
+    /**
+     * Replaces the selection with [positions] in one pass, used by the "select all" action.
+     * [itemCount] is the adapter size and is only used to refresh every row at once.
+     */
+    fun selectAll(positions: List<Int>, itemCount: Int) {
+        selectionMap.clear()
+        selectionMap.addAll(positions)
+        adapter.notifyItemRangeChanged(0, itemCount, payloadvalue)
+    }
+
     fun clearSelection() {
         if (selectionMap.size == 0) return
         val start = selectionMap.minOrNull()

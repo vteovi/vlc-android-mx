@@ -565,6 +565,11 @@
     <string name="tv_show_hidden_files_summary">Show hidden files in the file browser</string>
     <string name="show_hidden_folders_title">Show hidden folders</string>
     <string name="show_hidden_folders_summary">Show folders and files whose name starts with a dot in the browser. The media library does not index them</string>
+    <string name="show_hidden_videos_title">Show videos in hidden folders</string>
+    <string name="show_hidden_videos_summary">Add the videos stored in folders whose name starts with a dot to the media library, so they show up in the Video tab. New files are picked up when the app restarts</string>
+    <string name="hidden_videos_added">%1$d video(s) added to the media library</string>
+    <string name="hidden_videos_removed">%1$d video(s) removed from the media library</string>
+    <string name="hidden_videos_none">No video found in hidden folders</string>
     <string name="ab_repeat_fastseek_warning">Fast seek is enabled. It can lead to precision issues</string>
 
     <string name="extensions_prefs_category">Extensions</string>
@@ -1198,6 +1203,8 @@
     <string name="permission_media_warning">To enable this, you have to disable the full file permission first</string>
     <string name="customize">Customize</string>
     <string name="selection_count">%d selected</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Clear selection</string>
     <string name="control_setting">Control settings</string>
     <string name="controls_setting">Controls settings</string> <!-- Unused -->
     <string name="gestures">Gestures</string>

@@ -537,6 +537,11 @@
     <string name="tv_show_hidden_files_summary">在檔案瀏覽器中顯示隱藏的檔案</string>
     <string name="show_hidden_folders_title">顯示隱藏資料夾</string>
     <string name="show_hidden_folders_summary">在瀏覽介面顯示以點（.）開頭的隱藏資料夾與檔案。媒體庫不會收錄這些目錄</string>
+    <string name="show_hidden_videos_title">顯示隱藏資料夾中的影片</string>
+    <string name="show_hidden_videos_summary">把以點（.）開頭的隱藏資料夾裡的影片加入媒體庫，讓它們出現在「影片」頁面。媒體庫本身不掃描隱藏資料夾，這裡是逐一登記的方式；新增檔案會在下次啟動應用時收錄</string>
+    <string name="hidden_videos_added">已把 %1$d 個影片加入媒體庫</string>
+    <string name="hidden_videos_removed">已從媒體庫移除 %1$d 個影片</string>
+    <string name="hidden_videos_none">隱藏資料夾裡沒有找到影片</string>
     <string name="ab_repeat_fastseek_warning">已啟用快速搜尋。這可能會導致精度問題</string>
 
     <string name="extensions_prefs_category">擴充套件</string>
@@ -1167,6 +1172,8 @@
     <string name="permission_media_warning">要啟用此功能，您必須先停用完整檔案權限</string>
     <string name="customize">自訂</string>
     <string name="selection_count">已選取 %d</string>
+    <string name="select_all">全選</string>
+    <string name="deselect_all">取消選取</string>
     <string name="control_setting">控制設定</string>
     <string name="controls_setting">控制設定</string> <!-- Unused -->
     <string name="gestures">手勢</string>

@@ -30,6 +30,7 @@ object Settings : SingletonHolder<SharedPreferences, Context>({ init(it.applicat
     var audioLongJumpDelay = 20
     var audioShowTrackNumbers = MutableLiveData(false)
     var showHiddenFiles = false
+    var showHiddenVideos = false
     var showTrackNumber = true
     var tvFoldersFirst = true
     var incognitoMode = false
@@ -57,6 +58,7 @@ object Settings : SingletonHolder<SharedPreferences, Context>({ init(it.applicat
         audioLongJumpDelay = prefs.getInt(KEY_AUDIO_LONG_JUMP_DELAY, 20)
         audioShowTrackNumbers.postValue(prefs.getBoolean(KEY_AUDIO_SHOW_TRACK_NUMBERS, false))
         showHiddenFiles = prefs.getBoolean(BROWSER_SHOW_HIDDEN_FILES, !tvUI)
+        showHiddenVideos = prefs.getBoolean(SHOW_HIDDEN_VIDEOS, false)
         showTrackNumber = prefs.getBoolean(ALBUMS_SHOW_TRACK_NUMBER, true)
         tvFoldersFirst = prefs.getBoolean(TV_FOLDERS_FIRST, true)
         incognitoMode = prefs.getBoolean(KEY_INCOGNITO, false)
@@ -351,6 +353,7 @@ const val KEY_INCLUDE_MISSING = "include_missing"
 
 //files
 const val BROWSER_SHOW_HIDDEN_FILES = "browser_show_hidden_files"
+const val SHOW_HIDDEN_VIDEOS = "show_hidden_videos"
 const val BROWSER_SHOW_ONLY_MULTIMEDIA = "browser_show_only_multimedia"
 const val BROWSER_DISPLAY_IN_CARDS = "browser_display_in_cards"
 

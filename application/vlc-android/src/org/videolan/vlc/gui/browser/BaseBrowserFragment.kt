@@ -619,6 +619,57 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
         }
     }
 
+    /**
+     * Loads the current folder as a real playlist, positioned on [target].
+     *
+     * Tapping a file used to call [MediaUtils.openMedia], which puts a single item in the queue,
+     * so the previous/next buttons had nothing to jump to. Queuing the folder instead matches the
+     * MX Player behaviour the user expects when browsing a directory.
+     */
+    private suspend fun playFolderFrom(target: Uri) {
+        val quickPlay = Settings.getInstance(requireActivity()).getBoolean(KEY_QUICK_PLAY_DEFAULT, false)
+        scheduler.scheduleAction(MSG_SHOW_ENQUEUING, 1000L)
+        val playlist = withContext(Dispatchers.IO) {
+            viewModel.dataset.getList().filterIsInstance<MediaWrapper>()
+                    .filter { it.type == MediaWrapper.TYPE_AUDIO || it.type == MediaWrapper.TYPE_VIDEO }
+                    .map {
+                        getMediaWithMeta(it).apply {
+                            if (quickPlay) addFlags(MediaWrapper.MEDIA_NO_PARSE)
+                        }
+                    }
+        }
+        scheduler.startAction(MSG_HIDE_ENQUEUING)
+        if (playlist.isEmpty()) return
+        val index = playlist.indexOfFirst { it.uri == target }.coerceAtLeast(0)
+        MediaUtils.openList(activity, playlist, index)
+    }
+
+    /** Positions the action mode can select: media files and folders, never headers. */
+    private fun selectablePositions(): List<Int> = (0 until adapter.itemCount).filter { position ->
+        val item = adapter.getItem(position)
+        item is MediaWrapper && (item.type == MediaWrapper.TYPE_AUDIO ||
+                item.type == MediaWrapper.TYPE_VIDEO ||
+                item.type == MediaWrapper.TYPE_DIR)
+    }
+
+    /**
+     * Selects every file of the current folder at once, or clears the selection when everything
+     * is already selected. Only the file browser gets this action: the media library lists are
+     * paged, so "all" would be misleading there.
+     */
+    private fun toggleSelectAll() {
+        val positions = selectablePositions()
+        if (positions.isEmpty()) return
+        val helper = adapter.multiSelectHelper
+        if (positions.all { helper.isSelected(it) }) {
+            helper.clearSelection()
+            stopActionMode()
+        } else {
+            helper.selectAll(positions, adapter.itemCount)
+            invalidateActionMode()
+        }
+    }
+
     override fun enableSearchOption() = !isRootDirectory
 
     override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
@@ -641,11 +692,22 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
         menu.findItem(R.id.action_mode_file_info).isVisible = single && (type == MediaWrapper.TYPE_AUDIO || type == MediaWrapper.TYPE_VIDEO)
         menu.findItem(R.id.action_mode_file_append).isVisible = PlaylistManager.hasMedia()
         menu.findItem(R.id.action_mode_file_delete).isVisible = fileBrowser
+        menu.findItem(R.id.action_mode_select_all)?.let { selectAll ->
+            selectAll.isVisible = fileBrowser && adapter.itemCount > 1
+            val positions = selectablePositions()
+            val allSelected = positions.isNotEmpty() && positions.all { adapter.multiSelectHelper.isSelected(it) }
+            selectAll.title = getString(if (allSelected) R.string.deselect_all else R.string.select_all)
+        }
         return true
     }
 
     override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
         if (!isStarted()) return false
+        if (item.itemId == R.id.action_mode_select_all) {
+            // Selection changed, keep the action mode alive so the batch actions stay available.
+            toggleSelectAll()
+            return true
+        }
         @Suppress("UNCHECKED_CAST") val list = adapter.multiSelectHelper.getSelection() as? List<MediaWrapper>
                 ?: return false
         if (list.isNotEmpty()) {
@@ -765,7 +827,12 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
                             addFlags(MediaWrapper.MEDIA_NO_PARSE)
                     }
                     when (DefaultPlaybackActionMediaType.FILE.getCurrentPlaybackAction(Settings.getInstance(requireActivity()))) {
-                        DefaultPlaybackAction.PLAY -> MediaUtils.openMedia(requireContext(), getMediaWithMeta(media))
+                        DefaultPlaybackAction.PLAY -> {
+                            // Playing a file from a folder queues the whole folder, otherwise the
+                            // previous/next actions have nothing to move to.
+                            if (this@BaseBrowserFragment is FileBrowserFragment) playFolderFrom(media.uri)
+                            else MediaUtils.openMedia(requireContext(), media)
+                        }
                         DefaultPlaybackAction.ADD_TO_QUEUE -> MediaUtils.appendMedia(activity, media)
                         DefaultPlaybackAction.INSERT_NEXT -> MediaUtils.insertNext(activity, media)
                         else -> {
