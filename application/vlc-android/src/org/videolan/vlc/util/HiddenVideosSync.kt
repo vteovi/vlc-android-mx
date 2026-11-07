@@ -81,7 +81,7 @@ object HiddenVideosSync {
         if (now - lastSync < SYNC_INTERVAL) return
         lastSync = now
         AppScope.launch(Dispatchers.IO) {
-            runCatching { apply(context, true) }
+            runCatching { sync(context, true) }
                     .onFailure { Log.w(TAG, "Hidden videos sync failed", it) }
         }
     }
@@ -91,7 +91,7 @@ object HiddenVideosSync {
      *
      * @return the number of media handled.
      */
-    suspend fun apply(context: Context, enable: Boolean): Int = withContext(Dispatchers.IO) {
+    suspend fun sync(context: Context, enable: Boolean): Int = withContext(Dispatchers.IO) {
         val files = try {
             scanHiddenVideos()
         } catch (e: Exception) {

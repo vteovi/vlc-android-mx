@@ -195,7 +195,7 @@ class PreferencesUi : BasePreferenceFragment(), SharedPreferences.OnSharedPrefer
     private fun syncHiddenVideos() {
         val enable = Settings.showHiddenVideos
         lifecycleScope.launch {
-            val count = HiddenVideosSync.apply(requireContext(), enable)
+            val count = HiddenVideosSync.sync(requireContext(), enable)
             val text = when {
                 count == 0 -> getString(R.string.hidden_videos_none)
                 enable -> getString(R.string.hidden_videos_added, count)
