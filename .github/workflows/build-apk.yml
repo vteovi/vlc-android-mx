@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_NDK_VERSION: 27.0.12077973
       GRADLE_VERSION: 9.6.0
     steps:
@@ -36,11 +38,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # The runner already ships an Android SDK. setup-android@v3 is deliberately
+      # avoided: it calls "sdkmanager tools", a package removed from recent
+      # cmdline-tools, which makes the job fail before any of our code runs.
       - name: Install SDK components (API 36 / build-tools 36 / NDK)
         run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)
+          echo "sdkmanager=$SDKMANAGER"
+          export PATH="$(dirname "$SDKMANAGER"):$ANDROID_HOME/platform-tools:$PATH"
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;${ANDROID_NDK_VERSION}" > /dev/null
           echo "Installed SDK packages:"

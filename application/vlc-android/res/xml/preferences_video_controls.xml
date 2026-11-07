@@ -182,5 +182,67 @@
                 app:singleLineTitle="false" />
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="@string/mx_gesture_category_title"
+            app:iconSpaceReserved="false">
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_gesture_mode"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_gesture_mode_summary"
+                android:title="@string/mx_gesture_mode_title" />
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_swipe_seek"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_swipe_seek_summary"
+                android:title="@string/mx_swipe_seek_title" />
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_double_tap"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_double_tap_summary"
+                android:title="@string/mx_double_tap_title" />
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_long_press_speed"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_long_press_speed_summary"
+                android:title="@string/mx_long_press_speed_title" />
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_pinch_zoom"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_pinch_zoom_summary"
+                android:title="@string/mx_pinch_zoom_title" />
+
+        <CheckBoxPreference
+                android:defaultValue="true"
+                android:key="mx_lock_gesture"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                android:summary="@string/mx_lock_gesture_summary"
+                android:title="@string/mx_lock_gesture_title" />
+
+        <ListPreference
+                android:defaultValue="10"
+                android:entries="@array/mx_jump_delay_entries"
+                android:entryValues="@array/mx_jump_delay_values"
+                android:key="mx_double_tap_jump"
+                android:summary="%s"
+                android:title="@string/mx_double_tap_jump_title"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false" />
+    </PreferenceCategory>
+
 
 </androidx.preference.PreferenceScreen>

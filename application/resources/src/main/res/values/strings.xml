@@ -1447,4 +1447,39 @@
     <string name="feedback_email_warning_try_anyway">Try anyway</string>
     <string name="forum_url" translatable="false">https://forum.videolan.org/viewforum.php?f=35</string>
     <string name="doc_url" translatable="false">https://docs.videolan.me/vlc-user/android/</string>
+
+    <!-- MX style player skin -->
+    <string name="mx_gesture_category_title">MX style player</string>
+    <string name="mx_gesture_mode_title">Use MX style gestures and controls</string>
+    <string name="mx_gesture_mode_summary">Replace the stock player overlay with a top bar, side actions, a bottom timeline and MX style gestures</string>
+    <string name="mx_swipe_seek_title">Swipe to seek with preview</string>
+    <string name="mx_swipe_seek_summary">Drag horizontally to preview a target time, release to jump</string>
+    <string name="mx_double_tap_title">Double tap actions</string>
+    <string name="mx_double_tap_summary">Double tap left/right to jump, centre to play or pause</string>
+    <string name="mx_long_press_speed_title">Long press for 2x speed</string>
+    <string name="mx_long_press_speed_summary">Hold the screen to play at double speed, release to restore</string>
+    <string name="mx_pinch_zoom_title">Pinch to zoom</string>
+    <string name="mx_pinch_zoom_summary">Pinch in or out to switch the picture aspect ratio</string>
+    <string name="mx_lock_gesture_title">Swipe up to lock</string>
+    <string name="mx_lock_gesture_summary">Swipe up from the bottom edge to lock the screen, swipe up again to unlock</string>
+    <string name="mx_double_tap_jump_title">Double tap jump interval</string>
+    <string name="mx_brightness">Brightness</string>
+    <string name="mx_volume">Volume</string>
+    <string name="mx_zoom">Picture size</string>
+    <string name="mx_zoom_fill">Fill screen</string>
+    <string name="mx_zoom_fit">Best fit</string>
+    <string name="mx_fast_play">2x speed</string>
+    <string name="mx_locked">Screen locked</string>
+    <string name="mx_unlocked">Screen unlocked</string>
+    <string name="mx_swipe_up_unlock">Swipe up to unlock</string>
+    <string name="mx_release_to_lock">Release to lock</string>
+    <string name="mx_unseekable">Cannot seek this stream</string>
+    <string name="mx_gesture_hint">Gesture feedback</string>
+    <string name="mx_back">Back</string>
+    <string name="mx_rewind">Rewind 10 seconds</string>
+    <string name="mx_forward">Forward 10 seconds</string>
+    <string name="mx_play_pause">Play or pause</string>
+    <string name="mx_zero_time" translatable="false">00:00</string>
+    <string name="mx_speed_default" translatable="false">1.0x</string>
+    <string name="mx_speed_value" translatable="false">%1$.2fx</string>
 </resources>

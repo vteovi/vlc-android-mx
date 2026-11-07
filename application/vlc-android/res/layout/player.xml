@@ -236,5 +236,18 @@
             android:layout_height="match_parent"
             android:layout="@layout/player_screenshot" />
 
+    <!-- MX style skin: controls layer (top bar / side actions / bottom timeline) -->
+    <androidx.appcompat.widget.ViewStubCompat
+            android:id="@+id/mx_player_hud_stub"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout="@layout/mx_player_hud" />
+
+    <!-- MX style skin: centred gesture feedback panel, kept above the controls -->
+    <androidx.appcompat.widget.ViewStubCompat
+            android:id="@+id/mx_gesture_panel_stub"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout="@layout/mx_gesture_panel" />
 
 </FrameLayout>

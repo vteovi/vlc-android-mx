@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/mx_gesture_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:visibility="gone">
+
+    <LinearLayout
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/mx_panel_bg"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingLeft="20dp"
+            android:paddingTop="18dp"
+            android:paddingRight="20dp"
+            android:paddingBottom="18dp">
+
+        <ImageView
+                android:id="@+id/mx_gesture_icon"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="@string/mx_gesture_hint"
+                android:tint="#FFFF8C00"
+                app:srcCompat="@drawable/ic_player_forward_10" />
+
+        <TextView
+                android:id="@+id/mx_gesture_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="19sp"
+                android:textStyle="bold" />
+
+        <TextView
+                android:id="@+id/mx_gesture_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="#FFB0BEC5"
+                android:textSize="13sp" />
+
+        <ProgressBar
+                android:id="@+id/mx_gesture_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="14dp"
+                android:max="100"
+                android:progressTint="#FFFF8C00" />
+    </LinearLayout>
+
+</FrameLayout>

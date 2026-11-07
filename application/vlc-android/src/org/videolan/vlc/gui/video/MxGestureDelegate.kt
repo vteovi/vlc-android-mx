@@ -1,0 +1,438 @@
+/*
+ * ***************************************************************************
+ * MxGestureDelegate.kt
+ * ***************************************************************************
+ * MX Player style gesture layer for VLC for Android.
+ *
+ * Copyright (C) 2026  VLC authors and VideoLAN
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * ***************************************************************************
+ */
+package org.videolan.vlc.gui.video
+
+import android.content.Context
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.View
+import android.view.ViewConfiguration
+import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.widget.ViewStubCompat
+import androidx.core.content.ContextCompat
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.tools.MX_DOUBLE_TAP
+import org.videolan.tools.MX_DOUBLE_TAP_JUMP
+import org.videolan.tools.MX_GESTURE_MODE
+import org.videolan.tools.MX_LOCK_GESTURE
+import org.videolan.tools.MX_LONG_PRESS_SPEED
+import org.videolan.tools.MX_PINCH_ZOOM
+import org.videolan.tools.MX_SWIPE_SEEK
+import org.videolan.tools.Settings
+import org.videolan.vlc.R
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+/**
+ * Replaces the stock [VideoTouchDelegate] when MX mode is on.
+ *
+ * Behaviour differences from stock VLC:
+ *  - horizontal drag previews a target time in a centred panel and only seeks on release
+ *  - left half vertical drag = brightness, right half = volume (absolute from gesture start)
+ *  - double tap on left / right third = jump, centre = play/pause
+ *  - long press = temporary 2x speed, release restores the previous rate
+ *  - pinch = aspect ratio, swipe up from the bottom edge = lock/unlock
+ */
+class MxGestureDelegate(
+        private val player: VideoPlayerActivity,
+        private val controls: MxControlsDelegate
+) {
+
+    companion object {
+        private const val GESTURE_NONE = 0
+        private const val GESTURE_SEEK = 1
+        private const val GESTURE_BRIGHTNESS = 2
+        private const val GESTURE_VOLUME = 3
+        private const val GESTURE_LOCK = 4
+        private const val GESTURE_PINCH = 5
+        private const val TAP_TIMEOUT = 300L
+        private const val LONG_PRESS_TIMEOUT = 500L
+        private const val PANEL_HIDE_DELAY = 700L
+        private const val LOCK_SWIPE_THRESHOLD = 120f
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val audioManager: AudioManager by lazy(LazyThreadSafetyMode.NONE) {
+        player.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    private val touchSlop by lazy(LazyThreadSafetyMode.NONE) { ViewConfiguration.get(player).scaledTouchSlop }
+    private val screenWidth by lazy(LazyThreadSafetyMode.NONE) { player.resources.displayMetrics.widthPixels }
+    private val screenHeight by lazy(LazyThreadSafetyMode.NONE) { player.resources.displayMetrics.heightPixels }
+
+    private var enabled = true
+    private var allowSwipeSeek = true
+    private var allowDoubleTap = true
+    private var allowLongPressSpeed = true
+    private var allowPinchZoom = true
+    private var allowLockGesture = true
+    private var jumpSeconds = 10
+
+    private var startX = 0f
+    private var startY = 0f
+    private var startTimePos = 0L
+    private var targetTime = 0L
+    private var length = 0L
+    private var startVolume = 0
+    private var maxVolume = 0
+    private var startBrightness = 0.5f
+    private var gesture = GESTURE_NONE
+    private var moved = false
+    private var multiPointer = false
+    private var tapCount = 0
+    private var lastTapTime = 0L
+    private var lastTapX = 0f
+    private var lastTapY = 0f
+    private var fastPlayActive = false
+    private var savedRate = 1f
+    private var lockedStartY = 0f
+    private var accumulatedScale = 1f
+
+    private val panel: View = player.findViewById<ViewStubCompat>(R.id.mx_gesture_panel_stub).inflate()
+    private val panelIcon: ImageView = panel.findViewById(R.id.mx_gesture_icon)
+    private val panelTitle: TextView = panel.findViewById(R.id.mx_gesture_title)
+    private val panelSubtitle: TextView = panel.findViewById(R.id.mx_gesture_subtitle)
+    private val panelProgress: ProgressBar = panel.findViewById(R.id.mx_gesture_progress)
+
+    private val hidePanelRunnable = Runnable { hidePanel() }
+    private val singleTapRunnable = Runnable {
+        if (tapCount == 1) controls.toggle()
+    }
+    private val longPressRunnable = Runnable {
+        if (moved || multiPointer || gesture != GESTURE_NONE || player.isLocked || !allowLongPressSpeed) return@Runnable
+        val service = player.service ?: return@Runnable
+        savedRate = service.rate
+        service.setRate(2f, false)
+        fastPlayActive = true
+        showPanel(R.drawable.ic_speed, player.getString(R.string.mx_fast_play), "2.0x", 100, 100)
+        controls.hide(true)
+    }
+
+    private val scaleDetector by lazy(LazyThreadSafetyMode.NONE) {
+        ScaleGestureDetector(player, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                accumulatedScale = 1f
+                return allowPinchZoom && !player.isLocked
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                accumulatedScale *= detector.scaleFactor
+                return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                if (!allowPinchZoom) return
+                val mediaPlayer = player.service?.mediaplayer ?: return
+                val fill = accumulatedScale >= 1f
+                mediaPlayer.videoScale = if (fill) MediaPlayer.ScaleType.SURFACE_FILL else MediaPlayer.ScaleType.SURFACE_BEST_FIT
+                accumulatedScale = 1f
+                showPanel(R.drawable.ic_player_ratio, player.getString(R.string.mx_zoom),
+                        player.getString(if (fill) R.string.mx_zoom_fill else R.string.mx_zoom_fit), 100, 100)
+                hidePanelDelayed()
+            }
+        })
+    }
+
+    init {
+        panel.visibility = View.GONE
+        reloadSettings()
+    }
+
+    fun isEnabled() = enabled
+
+    fun reloadSettings() {
+        val prefs = Settings.getInstance(player)
+        enabled = prefs.getBoolean(MX_GESTURE_MODE, true)
+        allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
+        allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
+        allowLongPressSpeed = prefs.getBoolean(MX_LONG_PRESS_SPEED, true)
+        allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
+        allowLockGesture = prefs.getBoolean(MX_LOCK_GESTURE, true)
+        jumpSeconds = prefs.getString(MX_DOUBLE_TAP_JUMP, "10")?.toIntOrNull() ?: 10
+        controls.setMxEnabled(enabled)
+        if (enabled) controls.show() else {
+            hidePanel()
+            player.isLocked = false
+        }
+    }
+
+    fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!enabled) return false
+        if (player.isLocked) {
+            handleLockedTouch(event)
+            return true
+        }
+        if (allowPinchZoom) scaleDetector.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> handleDown(event)
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                multiPointer = true
+                cancelLongPress()
+                handler.removeCallbacks(singleTapRunnable)
+                tapCount = 0
+                gesture = GESTURE_PINCH
+                hidePanel()
+            }
+            MotionEvent.ACTION_MOVE -> if (!multiPointer) handleMove(event)
+            MotionEvent.ACTION_UP -> handleUp(event)
+            MotionEvent.ACTION_CANCEL -> handleCancel()
+        }
+        return true
+    }
+
+    private fun handleDown(event: MotionEvent) {
+        val now = System.currentTimeMillis()
+        tapCount = if (now - lastTapTime < TAP_TIMEOUT &&
+                abs(event.x - lastTapX) < touchSlop && abs(event.y - lastTapY) < touchSlop) {
+            tapCount + 1
+        } else 1
+        handler.removeCallbacks(singleTapRunnable)
+        startX = event.x
+        startY = event.y
+        moved = false
+        multiPointer = false
+        gesture = GESTURE_NONE
+        val service = player.service
+        length = service?.length ?: 0L
+        startTimePos = player.time
+        targetTime = startTimePos
+        maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        startBrightness = currentBrightness()
+        if (tapCount == 1 && allowLongPressSpeed) handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT)
+    }
+
+    private fun handleMove(event: MotionEvent) {
+        val dx = event.x - startX
+        val dy = event.y - startY
+        if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+            moved = true
+            cancelLongPress()
+            handler.removeCallbacks(singleTapRunnable)
+            tapCount = 0
+        }
+        if (!moved) return
+        if (gesture == GESTURE_NONE) {
+            gesture = when {
+                abs(dx) > abs(dy) * 1.2f -> if (allowSwipeSeek) GESTURE_SEEK else GESTURE_NONE
+                abs(dy) > abs(dx) * 1.2f -> when {
+                    allowLockGesture && startY > screenHeight * 0.88f && dy < -touchSlop -> GESTURE_LOCK
+                    startX < screenWidth / 2f -> GESTURE_BRIGHTNESS
+                    else -> GESTURE_VOLUME
+                }
+                else -> GESTURE_NONE
+            }
+        }
+        when (gesture) {
+            GESTURE_SEEK -> updateSeekPreview(dx)
+            GESTURE_BRIGHTNESS -> updateBrightness(dy)
+            GESTURE_VOLUME -> updateVolume(dy)
+            GESTURE_LOCK -> showPanel(R.drawable.ic_lock_player, player.getString(R.string.mx_locked),
+                    player.getString(R.string.mx_release_to_lock), 100, 100)
+        }
+    }
+
+    private fun updateSeekPreview(dx: Float) {
+        val service = player.service ?: return
+        if (length <= 0L || !service.isSeekable) {
+            showPanel(R.drawable.ic_player_forward_10, player.getString(R.string.mx_unseekable), "", 0, 100)
+            return
+        }
+        val ratio = dx / screenWidth.toFloat()
+        targetTime = (startTimePos + (ratio * length).toLong()).coerceIn(0L, length)
+        val delta = (targetTime - startTimePos) / 1000L
+        val sign = if (delta >= 0L) "+" else "-"
+        showPanel(if (delta >= 0L) R.drawable.ic_player_forward_10 else R.drawable.ic_player_rewind_10,
+                "${formatTime(targetTime)} / ${formatTime(length)}",
+                "$sign${formatTime(abs(delta) * 1000L)}",
+                if (length > 0L) ((targetTime * 100) / length).toInt() else 0, 100)
+        controls.hide(true)
+    }
+
+    private fun updateBrightness(dy: Float) {
+        val delta = -dy / (screenHeight * 0.7f)
+        val value = (startBrightness + delta).coerceIn(0.02f, 1f)
+        val attributes = player.window.attributes
+        attributes.screenBrightness = value
+        player.window.attributes = attributes
+        val percent = (value * 100).roundToInt()
+        showPanel(R.drawable.ic_player_brightness, "$percent%", player.getString(R.string.mx_brightness), percent, 100)
+        controls.hide(true)
+    }
+
+    private fun updateVolume(dy: Float) {
+        val delta = -dy / (screenHeight * 0.7f)
+        val value = (startVolume + delta * maxVolume).roundToInt().coerceIn(0, maxVolume)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
+        player.service?.setVolume(100)
+        val percent = if (maxVolume > 0) value * 100 / maxVolume else 0
+        showPanel(R.drawable.ic_player_volume, "$percent%", player.getString(R.string.mx_volume), percent, 100)
+        controls.hide(true)
+    }
+
+    private fun handleUp(event: MotionEvent) {
+        cancelLongPress()
+        if (fastPlayActive) {
+            player.service?.setRate(savedRate, false)
+            fastPlayActive = false
+        }
+        when (gesture) {
+            GESTURE_SEEK -> {
+                if (allowSwipeSeek && length > 0L && player.service?.isSeekable == true) {
+                    player.seek(targetTime, true)
+                }
+                controls.show()
+            }
+            GESTURE_LOCK -> setLocked(true)
+            GESTURE_BRIGHTNESS, GESTURE_VOLUME, GESTURE_PINCH -> controls.show()
+        }
+        hidePanelDelayed()
+        if (!moved && !multiPointer && !fastPlayActive) {
+            lastTapTime = System.currentTimeMillis()
+            lastTapX = event.x
+            lastTapY = event.y
+            if (tapCount >= 2) {
+                tapCount = 0
+                handler.removeCallbacks(singleTapRunnable)
+                performDoubleTap(event.x)
+            } else {
+                handler.postDelayed(singleTapRunnable, TAP_TIMEOUT)
+            }
+        } else {
+            tapCount = 0
+            lastTapTime = 0L
+        }
+        gesture = GESTURE_NONE
+        multiPointer = false
+    }
+
+    private fun handleCancel() {
+        cancelLongPress()
+        if (fastPlayActive) {
+            player.service?.setRate(savedRate, false)
+            fastPlayActive = false
+        }
+        gesture = GESTURE_NONE
+        multiPointer = false
+        tapCount = 0
+        hidePanel()
+        controls.show()
+    }
+
+    private fun handleLockedTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> lockedStartY = event.y
+            MotionEvent.ACTION_UP -> {
+                if (lockedStartY - event.y > LOCK_SWIPE_THRESHOLD) {
+                    setLocked(false)
+                } else {
+                    showPanel(R.drawable.ic_lock_player, player.getString(R.string.mx_locked),
+                            player.getString(R.string.mx_swipe_up_unlock), 100, 100)
+                    hidePanelDelayed()
+                }
+            }
+        }
+    }
+
+    fun setLocked(locked: Boolean) {
+        player.isLocked = locked
+        if (locked) {
+            controls.hide(true)
+            showPanel(R.drawable.ic_lock_player, player.getString(R.string.mx_locked),
+                    player.getString(R.string.mx_swipe_up_unlock), 100, 100)
+        } else {
+            showPanel(R.drawable.ic_lock_player, player.getString(R.string.mx_unlocked), "", 0, 100)
+            controls.show()
+        }
+        hidePanelDelayed()
+    }
+
+    private fun performDoubleTap(x: Float) {
+        if (!allowDoubleTap) return
+        val third = screenWidth / 3f
+        when {
+            x < third -> jump(-jumpSeconds)
+            x > third * 2f -> jump(jumpSeconds)
+            else -> togglePlayPause()
+        }
+    }
+
+    private fun jump(seconds: Int) {
+        val service = player.service ?: return
+        val total = service.length
+        if (total <= 0L || !service.isSeekable) return
+        val target = (player.time + seconds * 1000L).coerceIn(0L, total)
+        player.seek(target, true)
+        showPanel(if (seconds >= 0) R.drawable.ic_player_forward_10 else R.drawable.ic_player_rewind_10,
+                "${if (seconds >= 0) "+" else "-"}${abs(seconds)} s",
+                "${formatTime(target)} / ${formatTime(total)}",
+                if (total > 0L) ((target * 100) / total).toInt() else 0, 100)
+        hidePanelDelayed()
+    }
+
+    private fun togglePlayPause() {
+        val service = player.service ?: return
+        if (service.isPlaying) service.pause() else player.play()
+        controls.show()
+    }
+
+    private fun showPanel(iconRes: Int, title: String, subtitle: String, progress: Int, max: Int) {
+        handler.removeCallbacks(hidePanelRunnable)
+        panel.visibility = View.VISIBLE
+        panel.alpha = 1f
+        panelIcon.setImageDrawable(ContextCompat.getDrawable(player, iconRes))
+        panelTitle.text = title
+        panelSubtitle.text = subtitle
+        panelProgress.max = max
+        panelProgress.progress = progress.coerceIn(0, max)
+    }
+
+    private fun hidePanel() {
+        panel.visibility = View.GONE
+    }
+
+    private fun hidePanelDelayed() {
+        handler.removeCallbacks(hidePanelRunnable)
+        handler.postDelayed(hidePanelRunnable, PANEL_HIDE_DELAY)
+    }
+
+    private fun cancelLongPress() = handler.removeCallbacks(longPressRunnable)
+
+    private fun currentBrightness(): Float {
+        val value = player.window.attributes.screenBrightness
+        return if (value in 0.01f..1f) value else 0.5f
+    }
+
+    fun release() {
+        handler.removeCallbacksAndMessages(null)
+        controls.release()
+    }
+
+    private fun formatTime(ms: Long): String {
+        val total = (ms / 1000L).coerceAtLeast(0L)
+        val hours = total / 3600L
+        val minutes = (total % 3600L) / 60L
+        val seconds = total % 60L
+        return if (hours > 0L) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
+    }
+}

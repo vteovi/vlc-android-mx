@@ -318,6 +318,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
 
     internal var fov: Float = 0.toFloat()
     lateinit var touchDelegate: VideoTouchDelegate
+    lateinit var mxGestureDelegate: MxGestureDelegate
     val statsDelegate: VideoStatsDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoStatsDelegate(this, { overlayDelegate.showOverlayTimeout(OVERLAY_INFINITE) }, { overlayDelegate.showOverlay(true) }) }
     val delayDelegate: VideoDelayDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoDelayDelegate(this@VideoPlayerActivity) }
     val screenshotDelegate: VideoPlayerScreenshotDelegate by lazy(LazyThreadSafetyMode.NONE) { VideoPlayerScreenshotDelegate(this@VideoPlayerActivity) }
@@ -622,6 +623,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         val xRange = dm.widthPixels.coerceAtLeast(dm.heightPixels)
         val sc = ScreenConfig(dm, xRange, yRange, resources.configuration.orientation)
         touchDelegate = VideoTouchDelegate(this, generateTouchFlags(), sc, isTv)
+        mxGestureDelegate = MxGestureDelegate(this, MxControlsDelegate(this))
         UiTools.setRotationAnimation(this)
         if (savedInstanceState != null) {
             savedTime = savedInstanceState.getLong(KEY_TIME)
@@ -1027,6 +1029,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         }
         optionsDelegate = null
         overlayDelegate.onDestroy()
+        if (::mxGestureDelegate.isInitialized) mxGestureDelegate.release()
 
         // Dismiss the presentation when the activity is not visible.
         displayManager.release()
@@ -1816,7 +1819,12 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
      */
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return service != null && touchDelegate.onTouchEvent(event)
+        if (service == null) return false
+        return if (::mxGestureDelegate.isInitialized && mxGestureDelegate.isEnabled()) {
+            mxGestureDelegate.onTouchEvent(event)
+        } else {
+            touchDelegate.onTouchEvent(event)
+        }
     }
 
     internal fun updateViewpoint(yaw: Float, pitch: Float, fov: Float): Boolean {
@@ -2565,7 +2573,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             overlayDelegate.updateScreenshotButton()
         }
         ENABLE_SEEK_BUTTONS -> overlayDelegate.seekButtons = settings.getBoolean(ENABLE_SEEK_BUTTONS, false)
-        else -> {}
+        else -> if (key.startsWith("mx_") && ::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
     }
 
     companion object {
