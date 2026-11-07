@@ -1476,9 +1476,14 @@
     <string name="mx_unseekable">Cannot seek this stream</string>
     <string name="mx_gesture_hint">Gesture feedback</string>
     <string name="mx_back">Back</string>
-    <string name="mx_rewind">Rewind 10 seconds</string>
-    <string name="mx_forward">Forward 10 seconds</string>
+    <string name="mx_rewind">Rewind</string>
+    <string name="mx_forward">Forward</string>
     <string name="mx_play_pause">Play or pause</string>
+    <string name="mx_jump_60" translatable="false">60</string>
+    <string name="mx_popup">Popup player</string>
+    <string name="mx_more_options">More options</string>
+    <string name="mx_repeat">Repeat mode</string>
+    <string name="mx_speed_pick">Playback speed</string>
     <string name="mx_zero_time" translatable="false">00:00</string>
     <string name="mx_speed_default" translatable="false">1.0x</string>
     <string name="mx_speed_value" translatable="false">%1$.2fx</string>

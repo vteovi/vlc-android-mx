@@ -17,6 +17,7 @@ package org.videolan.vlc.gui.video
 import android.content.pm.ActivityInfo
 import android.os.Handler
 import android.os.Looper
+import android.support.v4.media.session.PlaybackStateCompat
 import android.text.InputType
 import android.view.View
 import android.widget.FrameLayout
@@ -28,8 +29,10 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.tools.MX_DOUBLE_TAP_JUMP
 import org.videolan.tools.Settings
 import org.videolan.vlc.R
+import kotlin.math.abs
 
 /**
  * MX-style HUD: top title bar, right vertical quick actions, bottom timeline.
@@ -41,6 +44,11 @@ import org.videolan.vlc.R
  */
 class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
+    companion object {
+        /** Speeds offered by the MX speed sheet. */
+        private val SPEEDS = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
+    }
+
     private val handler = Handler(Looper.getMainLooper())
     private val root: View = player.findViewById<ViewStubCompat>(R.id.mx_player_hud_stub).inflate()
 
@@ -51,15 +59,18 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val timeView: TextView = root.findViewById(R.id.mx_time)
     private val lengthView: TextView = root.findViewById(R.id.mx_length)
     private val speedView: TextView = root.findViewById(R.id.mx_speed)
+    private val repeatView: ImageView = root.findViewById(R.id.mx_repeat)
     private val seekBar: SeekBar = root.findViewById(R.id.mx_seekbar)
     private val playButton: ImageView = root.findViewById(R.id.mx_play)
+    private val rewindLabel: TextView = root.findViewById(R.id.mx_rewind_label)
+    private val forwardLabel: TextView = root.findViewById(R.id.mx_forward_label)
 
     private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, bottomBar, sideBar) }
-    private val speeds = floatArrayOf(1f, 1.25f, 1.5f, 2f)
-    private var speedIndex = 0
     private var mxEnabled = true
     private var tracking = false
     private var lastCustomRatio = "9:16"
+    private var jumpSeconds = 60
+    private var repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE
 
     private val hideRunnable = Runnable { hide() }
     private val ticker = object : Runnable {
@@ -73,6 +84,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     init {
         seekBar.max = 1000
         titleView.text = mediaTitle()
+        jumpSeconds = Settings.getInstance(player).getString(MX_DOUBLE_TAP_JUMP, "60")?.toIntOrNull() ?: 60
+        refreshJumpLabels()
         bindButtons()
         root.postDelayed(ticker, 500L)
     }
@@ -84,14 +97,23 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private fun bindButtons() {
         root.findViewById<View>(R.id.mx_back).setOnClickListener { player.finish() }
         root.findViewById<View>(R.id.mx_play).setOnClickListener { togglePlayPause() }
-        root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-10) }
-        root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(10) }
+        root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-jumpSeconds) }
+        root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(jumpSeconds) }
         root.findViewById<View>(R.id.mx_ratio).setOnClickListener { showRatioMenu() }
         root.findViewById<View>(R.id.mx_rotate).setOnClickListener { rotateScreen() }
-        root.findViewById<View>(R.id.mx_tracks).setOnClickListener { player.overlayDelegate.showTracks(); show() }
+        root.findViewById<View>(R.id.mx_repeat).setOnClickListener { cycleRepeatMode() }
+        root.findViewById<View>(R.id.mx_tracks).setOnClickListener {
+            hide(true)
+            player.overlayDelegate.showTracks()
+        }
         root.findViewById<View>(R.id.mx_lock).setOnClickListener { player.mxGestureDelegate.setLocked(true) }
-        speedView.setOnClickListener { cycleSpeed() }
-        root.findViewById<View>(R.id.mx_more).setOnClickListener { player.overlayDelegate.showTracks(); show() }
+        speedView.setOnClickListener { showSpeedMenu() }
+        // Popup (PiP / floating window) and the stock options sheet are still reachable in MX mode.
+        root.findViewById<View>(R.id.mx_popup).setOnClickListener { switchToPopup() }
+        root.findViewById<View>(R.id.mx_more).setOnClickListener {
+            hide(true)
+            player.showAdvancedOptions()
+        }
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -122,12 +144,69 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         show()
     }
 
-    private fun cycleSpeed() {
-        speedIndex = (speedIndex + 1) % speeds.size
-        val rate = speeds[speedIndex]
-        player.service?.setRate(rate, false)
-        speedView.text = player.getString(R.string.mx_speed_value, rate)
+    /** MX Player style speed sheet: pick a rate from 0.25x to 4x. */
+    private fun showSpeedMenu() {
         show()
+        val current = player.service?.rate ?: 1f
+        val checked = SPEEDS.indexOfFirst { abs(it - current) < 0.01f }
+        val labels = SPEEDS.map { formatRate(it) }.toTypedArray()
+        AlertDialog.Builder(player)
+                .setTitle(R.string.mx_speed_pick)
+                .setSingleChoiceItems(labels, checked) { dialog, which ->
+                    applyRate(SPEEDS[which])
+                    dialog.dismiss()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+    }
+
+    private fun applyRate(rate: Float) {
+        player.service?.setRate(rate, true)
+        speedView.text = formatRate(rate)
+        player.mxGestureDelegate.showHint(R.drawable.ic_speed, formatRate(rate))
+        show()
+    }
+
+    private fun formatRate(rate: Float): String {
+        // 1.0x / 1.5x / 1.25x / 4.0x: two decimals, trailing zeros trimmed but keep one decimal.
+        val text = String.format("%.2f", rate).trimEnd('0')
+        return if (text.endsWith('.')) "${text}0x" else "${text}x"
+    }
+
+    /** Repeat off -> repeat one -> repeat all -> off, mirrored from the stock repeat option. */
+    private fun cycleRepeatMode() {
+        val service = player.service ?: return
+        val next = when (service.repeatType) {
+            PlaybackStateCompat.REPEAT_MODE_ONE -> PlaybackStateCompat.REPEAT_MODE_ALL
+            PlaybackStateCompat.REPEAT_MODE_ALL -> PlaybackStateCompat.REPEAT_MODE_NONE
+            else -> PlaybackStateCompat.REPEAT_MODE_ONE
+        }
+        service.repeatType = next
+        repeatMode = next
+        updateRepeatIcon(next)
+        val label = when (next) {
+            PlaybackStateCompat.REPEAT_MODE_ONE -> player.getString(R.string.repeat_single)
+            PlaybackStateCompat.REPEAT_MODE_ALL -> player.getString(R.string.repeat_all)
+            else -> player.getString(R.string.repeat_none)
+        }
+        player.mxGestureDelegate.showHint(repeatIcon(next), label)
+        show()
+    }
+
+    private fun repeatIcon(mode: Int) = when (mode) {
+        PlaybackStateCompat.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
+        PlaybackStateCompat.REPEAT_MODE_ALL -> R.drawable.ic_repeat_all
+        else -> R.drawable.ic_repeat
+    }
+
+    private fun updateRepeatIcon(mode: Int) {
+        repeatView.setImageDrawable(ContextCompat.getDrawable(player, repeatIcon(mode)))
+        repeatView.contentDescription = player.getString(R.string.mx_repeat)
+    }
+
+    private fun switchToPopup() {
+        hide(true)
+        player.switchToPopup()
     }
 
     private fun seekBy(seconds: Int) {
@@ -144,6 +223,12 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         val service = player.service ?: return
         val title = mediaTitle().toString()
         if (titleView.text.toString() != title) titleView.text = title
+        val rateLabel = formatRate(service.rate)
+        if (speedView.text.toString() != rateLabel) speedView.text = rateLabel
+        if (service.repeatType != repeatMode) {
+            repeatMode = service.repeatType
+            updateRepeatIcon(repeatMode)
+        }
         val length = service.length
         val position = player.time
         timeView.text = formatTime(position)
@@ -157,6 +242,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
     fun show() {
         if (!mxEnabled) return
+        // The player is a small PiP / popup window: no room for the full MX chrome.
+        if (player.service?.isInPiPMode?.value == true) return
         // Make sure the stock VLC controls never stay visible underneath this layer.
         // Guarded by isShowing so the overlay delegate is not touched before it is used.
         if (player.isShowing) player.overlayDelegate.dismissForMxMode()
@@ -193,6 +280,18 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     fun setMxEnabled(enabled: Boolean) {
         mxEnabled = enabled
         if (!enabled) hide(true)
+    }
+
+    /** Keeps the bottom bar labels in sync with the double tap jump interval. */
+    fun setJumpInterval(seconds: Int) {
+        if (seconds <= 0 || seconds == jumpSeconds) return
+        jumpSeconds = seconds
+        refreshJumpLabels()
+    }
+
+    private fun refreshJumpLabels() {
+        rewindLabel.text = jumpSeconds.toString()
+        forwardLabel.text = jumpSeconds.toString()
     }
 
     fun release() {

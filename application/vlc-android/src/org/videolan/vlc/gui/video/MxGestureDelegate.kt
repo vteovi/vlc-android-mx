@@ -82,7 +82,7 @@ class MxGestureDelegate(
     private var allowLongPressSpeed = true
     private var allowPinchZoom = true
     private var allowLockGesture = true
-    private var jumpSeconds = 10
+    private var jumpSeconds = 60
 
     private var startX = 0f
     private var startY = 0f
@@ -156,6 +156,9 @@ class MxGestureDelegate(
 
     fun isEnabled() = enabled
 
+    /** Jump interval used by double tap and the bottom bar buttons, in seconds. */
+    val jumpInterval: Int get() = jumpSeconds
+
     fun isControlsVisible() = enabled && controls.isVisible()
 
     fun hideControls() = controls.hide()
@@ -174,7 +177,8 @@ class MxGestureDelegate(
         allowLongPressSpeed = prefs.getBoolean(MX_LONG_PRESS_SPEED, true)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
         allowLockGesture = prefs.getBoolean(MX_LOCK_GESTURE, true)
-        jumpSeconds = prefs.getString(MX_DOUBLE_TAP_JUMP, "10")?.toIntOrNull() ?: 10
+        jumpSeconds = prefs.getString(MX_DOUBLE_TAP_JUMP, "60")?.toIntOrNull() ?: 60
+        controls.setJumpInterval(jumpSeconds)
         controls.setMxEnabled(enabled)
         if (enabled) controls.show() else {
             hidePanel()
@@ -184,6 +188,8 @@ class MxGestureDelegate(
 
     fun onTouchEvent(event: MotionEvent): Boolean {
         if (!enabled) return false
+        // PiP / popup window: let the system and the stock popup buttons handle the taps.
+        if (player.service?.isInPiPMode?.value == true) return false
         if (player.isLocked) {
             handleLockedTouch(event)
             return true

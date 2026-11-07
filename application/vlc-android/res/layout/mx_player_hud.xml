@@ -44,11 +44,21 @@
                 android:textStyle="bold" />
 
         <ImageView
+                android:id="@+id/mx_popup"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_popup"
+                android:padding="8dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_popup_dim" />
+
+        <ImageView
                 android:id="@+id/mx_more"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/tracks"
+                android:contentDescription="@string/mx_more_options"
                 android:padding="8dp"
                 android:tint="#FFFFFFFF"
                 app:srcCompat="@drawable/ic_player_more" />
@@ -97,6 +107,16 @@
                 android:textColor="#FFFF8C00"
                 android:textSize="13sp"
                 android:textStyle="bold" />
+
+        <ImageView
+                android:id="@+id/mx_repeat"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_repeat"
+                android:padding="10dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_repeat" />
 
         <ImageView
                 android:id="@+id/mx_tracks"
@@ -173,15 +193,33 @@
                 android:orientation="horizontal"
                 android:paddingTop="4dp">
 
-            <ImageView
+            <FrameLayout
                     android:id="@+id/mx_rewind"
-                    android:layout_width="48dp"
+                    android:layout_width="52dp"
                     android:layout_height="48dp"
                     android:background="?android:attr/selectableItemBackground"
-                    android:contentDescription="@string/mx_rewind"
-                    android:padding="8dp"
-                    android:tint="#FFFFFFFF"
-                    app:srcCompat="@drawable/ic_player_rewind_10" />
+                    android:contentDescription="@string/mx_rewind">
+
+                <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:importantForAccessibility="no"
+                        android:padding="8dp"
+                        android:tint="#FFFFFFFF"
+                        app:srcCompat="@drawable/ic_player_rewind_10" />
+
+                <TextView
+                        android:id="@+id/mx_rewind_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:importantForAccessibility="no"
+                        android:includeFontPadding="false"
+                        android:text="@string/mx_jump_60"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+            </FrameLayout>
 
             <ImageView
                     android:id="@+id/mx_play"
@@ -195,15 +233,33 @@
                     android:tint="#FFFFFFFF"
                     app:srcCompat="@drawable/ic_pause_player" />
 
-            <ImageView
+            <FrameLayout
                     android:id="@+id/mx_forward"
-                    android:layout_width="48dp"
+                    android:layout_width="52dp"
                     android:layout_height="48dp"
                     android:background="?android:attr/selectableItemBackground"
-                    android:contentDescription="@string/mx_forward"
-                    android:padding="8dp"
-                    android:tint="#FFFFFFFF"
-                    app:srcCompat="@drawable/ic_player_forward_10" />
+                    android:contentDescription="@string/mx_forward">
+
+                <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:importantForAccessibility="no"
+                        android:padding="8dp"
+                        android:tint="#FFFFFFFF"
+                        app:srcCompat="@drawable/ic_player_forward_10" />
+
+                <TextView
+                        android:id="@+id/mx_forward_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:importantForAccessibility="no"
+                        android:includeFontPadding="false"
+                        android:text="@string/mx_jump_60"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+            </FrameLayout>
         </LinearLayout>
     </LinearLayout>
 

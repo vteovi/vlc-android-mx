@@ -234,7 +234,7 @@
                 android:title="@string/mx_lock_gesture_title" />
 
         <ListPreference
-                android:defaultValue="10"
+                android:defaultValue="60"
                 android:entries="@array/mx_jump_delay_entries"
                 android:entryValues="@array/mx_jump_delay_values"
                 android:key="mx_double_tap_jump"
