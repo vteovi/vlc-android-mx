@@ -1471,4 +1471,9 @@
     <string name="mx_rotation_reverse_landscape">反向橫向</string>
     <string name="mx_shuffle">隨機播放</string>
     <string name="mx_shuffle_unavailable">列表項目太少，無法隨機播放</string>
+    <string name="mx_storage_sd">SD 卡</string>
+    <string name="mx_storage_usb">USB 儲存</string>
+    <string name="mx_storage_need_permission">需授權</string>
+    <string name="mx_storage_grant">去授權</string>
+    <string name="mx_storage_permission_hint">需要「所有檔案存取權限」才能瀏覽這個儲存空間</string>
     </resources>

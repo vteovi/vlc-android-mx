@@ -28,6 +28,7 @@ import android.os.Build
 import android.os.Build.VERSION_CODES
 import android.os.Environment
 import android.os.storage.StorageManager
+import android.os.storage.StorageVolume
 import android.telephony.TelephonyManager
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -111,6 +112,10 @@ object AndroidDevices {
             } finally {
                 close(bufReader)
             }
+            // Mount points may point inside a volume (e.g. /storage/1234-ABCD/Android), keep roots.
+            val normalized = list.map { volumeRoot(it) }.distinct()
+            list.clear()
+            list.addAll(normalized)
             list.remove(EXTERNAL_PUBLIC_DIRECTORY)
             // Since Android 8 the app mount namespace no longer exposes removable volumes in
             // /proc/mounts, so ask the framework for one app specific directory per volume and
@@ -121,34 +126,94 @@ object AndroidDevices {
 
     /**
      * Recovers the root of every mounted volume (SD card, USB OTG) the app can see.
-     * [Context.getExternalFilesDirs] returns one path per volume on API 19+, and
-     * [StorageManager.getStorageVolumes] fills the gaps on API 30+.
+     *
+     * [Context.getExternalFilesDirs] returns one app specific directory per volume, and
+     * [StorageManager.getStorageVolumes] gives the authoritative mount point. Both are normalised
+     * through [volumeRoot] so `/storage/1234-ABCD/Android/data/<pkg>/files` never leaks into the
+     * storage list as an entry called "Android".
      */
     private fun addStorageVolumeRoots(list: MutableList<String>) {
         val ctx = AppContextProvider.appContext
-        val suffix = "/Android/data/${ctx.packageName}/files"
         try {
             ctx.getExternalFilesDirs(null).forEach { dir ->
-                val path = dir?.absolutePath ?: return@forEach
-                val root = when {
-                    path.endsWith(suffix) -> path.removeSuffix(suffix)
-                    path.contains("/Android/data/") -> path.substringBefore("/Android/data/")
-                    else -> path
-                }.trimEnd('/')
-                if (root.isNotEmpty() && root != EXTERNAL_PUBLIC_DIRECTORY && !list.contains(root)) list.add(root)
+                dir?.absolutePath?.let { addStorageRoot(list, it) }
             }
         } catch (ignored: Exception) {
         }
-        if (Build.VERSION.SDK_INT >= VERSION_CODES.R) {
-            try {
-                val storageManager = ctx.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
-                storageManager?.storageVolumes?.forEach { volume ->
-                    val root = volume.directory?.absolutePath?.trimEnd('/') ?: return@forEach
-                    if (root.isNotEmpty() && root != EXTERNAL_PUBLIC_DIRECTORY && !list.contains(root)) list.add(root)
-                }
-            } catch (ignored: Exception) {
-            }
+        storageVolumes(ctx).forEach { volume ->
+            volume.directory?.absolutePath?.let { addStorageRoot(list, it) }
         }
+        // Last resort for volumes hidden from this app: /storage holds one entry per mounted
+        // volume on every Android version.
+        try {
+            File("/storage").listFiles()?.forEach { child ->
+                val name = child.name
+                if (!child.isDirectory || name == "emulated" || name == "self" || name == "sdcard0" || name.startsWith("runtime")) return@forEach
+                addStorageRoot(list, child.absolutePath)
+            }
+        } catch (ignored: Exception) {
+        }
+    }
+
+    private fun addStorageRoot(list: MutableList<String>, rawPath: String) {
+        val root = volumeRoot(rawPath)
+        if (root.isEmpty() || root == EXTERNAL_PUBLIC_DIRECTORY) return
+        if (list.any { volumeRoot(it) == root }) return
+        // The same volume can be exposed as /mnt/media_rw/<uuid> and /storage/<uuid>: keep a
+        // single entry, preferring the path the framework gives for browsing.
+        val tag = root.substringAfterLast('/')
+        val duplicate = list.indexOfFirst { it.substringAfterLast('/') == tag }
+        if (duplicate >= 0) {
+            if (!list[duplicate].startsWith("/storage/") && root.startsWith("/storage/")) list[duplicate] = root
+            return
+        }
+        list.add(root)
+    }
+
+    /**
+     * Normalises a path to the mount point of its volume, dropping any app specific suffix:
+     * `/storage/1234-ABCD/Android/data/<pkg>/files` becomes `/storage/1234-ABCD`.
+     */
+    fun volumeRoot(path: String): String {
+        val trimmed = path.trimEnd('/')
+        val androidIndex = trimmed.indexOf("/Android")
+        return (if (androidIndex > 0) trimmed.substring(0, androidIndex) else trimmed).trimEnd('/')
+    }
+
+    /** Removable volumes currently reported by the framework. */
+    @TargetApi(VERSION_CODES.N)
+    fun storageVolumes(ctx: Context = AppContextProvider.appContext): List<StorageVolume> {
+        if (Build.VERSION.SDK_INT < VERSION_CODES.N) return emptyList()
+        return try {
+            (ctx.getSystemService(Context.STORAGE_SERVICE) as? StorageManager)?.storageVolumes.orEmpty()
+        } catch (ignored: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Human readable label for every mounted volume, keyed by its normalised mount point,
+     * for instance `"SD card (1234-ABCD)"`. Older devices simply return an empty map.
+     */
+    @TargetApi(VERSION_CODES.N)
+    fun storageVolumeLabels(ctx: Context = AppContextProvider.appContext): Map<String, String> {
+        val labels = HashMap<String, String>()
+        storageVolumes(ctx).forEach { volume ->
+            val path = volume.directory?.absolutePath ?: return@forEach
+            val uuid = volume.uuid
+            val description = try {
+                volume.getDescription(ctx)
+            } catch (ignored: Exception) {
+                null
+            }
+            val label = when {
+                description.isNullOrBlank() -> uuid
+                uuid.isNullOrBlank() || description.contains(uuid) -> description
+                else -> "$description ($uuid)"
+            } ?: return@forEach
+            labels[volumeRoot(path)] = label
+        }
+        return labels
     }
 
     private val isManufacturerBannedForMediastyleNotifications: Boolean

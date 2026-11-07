@@ -32,6 +32,7 @@ import org.videolan.resources.AndroidDevices
 import org.videolan.tools.livedata.LiveDataset
 import org.videolan.vlc.R
 import org.videolan.vlc.repository.DirectoryRepository
+import org.videolan.vlc.util.FileUtils
 import java.io.File
 
 class StorageProvider(context: Context, dataset: LiveDataset<MediaLibraryItem>, url: String?) : FileBrowserProvider(context, dataset, url, false, sort = Medialibrary.SORT_FILENAME, desc = false) {
@@ -42,15 +43,25 @@ class StorageProvider(context: Context, dataset: LiveDataset<MediaLibraryItem>, 
     override suspend fun browseRootImpl() {
         val storages = DirectoryRepository.getInstance(context).getMediaDirectories()
         val customDirectories = DirectoryRepository.getInstance(context).getCustomDirectories()
-        var storage: Storage
+        // Framework labels ("SD card", "USB drive", …) for the mounted volumes, keyed by mount point.
+        val labels = AndroidDevices.storageVolumeLabels(context)
         val storagesList = ArrayList<MediaLibraryItem>()
+        val added = HashSet<String>()
         for (mediaDirLocation in storages) {
-            val file = File(mediaDirLocation)
-            if (!file.exists() || !file.canRead()) continue
             if (mediaDirLocation.isEmpty()) continue
-            storage = Storage(Uri.fromFile(File(mediaDirLocation)))
-            if (AndroidDevices.EXTERNAL_PUBLIC_DIRECTORY == mediaDirLocation)
-                storage.name = context.getString(R.string.internal_memory)
+            // Drop any /Android/data/<pkg>/… suffix, the entry must be the volume root.
+            val path = AndroidDevices.volumeRoot(mediaDirLocation)
+            if (!added.add(path)) continue
+            val file = File(path)
+            if (!file.exists()) continue
+            val readable = file.canRead()
+            val label = storageLabel(path, file, labels)
+            // A volume known to the framework is always listed, even when the app is still missing
+            // the "All files access" permission: the entry then explains what has to be granted.
+            if (!readable && !labels.containsKey(path)) continue
+            val storage = Storage(Uri.fromFile(file))
+            storage.name = if (readable) label
+            else "$label · ${context.getString(R.string.mx_storage_need_permission)}"
             storagesList.add(storage)
         }
         customLoop@ for (customDir in customDirectories) {
@@ -58,10 +69,22 @@ class StorageProvider(context: Context, dataset: LiveDataset<MediaLibraryItem>, 
                 if (mediaDirLocation.isEmpty()) continue
                 if (customDir.path.startsWith(mediaDirLocation)) continue@customLoop
             }
-            storage = Storage(customDir.path.toUri())
-            storagesList.add(storage)
+            storagesList.add(Storage(customDir.path.toUri()))
         }
         dataset.value = storagesList
+    }
+
+    /** Storage entries are named after the volume, not after a random path segment. */
+    private fun storageLabel(path: String, file: File, labels: Map<String, String>): String {
+        if (AndroidDevices.EXTERNAL_PUBLIC_DIRECTORY == path) return context.getString(R.string.internal_memory)
+        val uuid = file.name
+        val description = labels[path]
+        return when {
+            description == null -> FileUtils.getStorageTag(uuid) ?: uuid
+            description.contains("sd", ignoreCase = true) -> "${context.getString(R.string.mx_storage_sd)} ($uuid)"
+            description.contains("usb", ignoreCase = true) -> "${context.getString(R.string.mx_storage_usb)} ($uuid)"
+            else -> description
+        }
     }
 
     private val sb = StringBuilder()

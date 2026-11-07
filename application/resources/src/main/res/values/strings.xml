@@ -1513,4 +1513,9 @@
     <string name="mx_rotation_reverse_landscape">Reverse landscape</string>
     <string name="mx_shuffle">Shuffle</string>
     <string name="mx_shuffle_unavailable">Not enough items to shuffle</string>
+    <string name="mx_storage_sd">SD card</string>
+    <string name="mx_storage_usb">USB storage</string>
+    <string name="mx_storage_need_permission">permission needed</string>
+    <string name="mx_storage_grant">Grant access</string>
+    <string name="mx_storage_permission_hint">VLC needs \"All files access\" to browse this storage</string>
 </resources>

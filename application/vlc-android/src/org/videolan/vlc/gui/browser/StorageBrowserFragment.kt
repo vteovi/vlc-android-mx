@@ -25,8 +25,11 @@ package org.videolan.vlc.gui.browser
 
 import android.annotation.TargetApi
 import android.content.DialogInterface
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.text.InputType
 import android.view.Menu
 import android.view.MenuItem
@@ -63,6 +66,8 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     override var scannedDirectory = false
     private var snack: com.google.android.material.snackbar.Snackbar? = null
     private var alertDialog: AlertDialog? = null
+    /** Last known value of the "All files access" grant, used to refresh after the settings trip. */
+    private var lastStorageAccess: Boolean? = null
     // This fragment should never be displayed in cards. Forcing to false
     override var inCards: Boolean
         get() = false
@@ -106,6 +111,11 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     override fun onStart() {
         super.onStart()
         addRootsCallback()
+        // Coming back from the "All files access" settings screen: SD cards may be readable now.
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+        val previous = lastStorageAccess
+        lastStorageAccess = granted
+        if (previous != null && previous != granted) viewModel.browseRoot()
         snack?.show()
         lifecycleScope.launchWhenStarted { if (isAdded) (adapter as StorageBrowserAdapter).updateListState(requireContext()) }
         addBannedFoldersCallback { folder, _ ->
@@ -149,7 +159,37 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     override fun onClick(v: View, position: Int, item: MediaLibraryItem) {
         val mw = (item as? Storage)?.let { MLServiceLocator.getAbstractMediaWrapper(it.uri) } ?: return
         mw.type = MediaWrapper.TYPE_DIR
+        // A volume can be listed while the app still lacks "All files access": explain instead of
+        // opening an empty folder.
+        val path = mw.uri.path
+        if (path != null && !File(path).canRead()) {
+            askStoragePermission()
+            return
+        }
         browse(mw, scannedDirectory || (DataBindingUtil.findBinding<BrowserItemBinding>(v))?.browserCheckbox?.state == ThreeStatesCheckbox.STATE_CHECKED, createFragment(),if (isRootDirectory) "root" else if (currentMedia != null) currentMedia?.uri.toString() else mrl!!)
+    }
+
+    /** Points the user to the system "All files access" screen for this app. */
+    private fun askStoragePermission() {
+        val anchor = view ?: return
+        val bar = com.google.android.material.snackbar.Snackbar.make(anchor,
+                R.string.mx_storage_permission_hint,
+                com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            bar.setAction(R.string.mx_storage_grant) {
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.fromParts("package", requireContext().packageName, null))
+                try {
+                    startActivity(intent)
+                } catch (ignored: Exception) {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                    } catch (ignored2: Exception) {
+                    }
+                }
+            }
+        }
+        bar.show()
     }
 
     override fun onLongClick(v: View, position: Int, item: MediaLibraryItem): Boolean {
