@@ -55,8 +55,13 @@ jobs:
       # configuration. compile.sh --init is NOT used here because it clones the full
       # VLC native source tree (several GB) which is unnecessary for a Debug build:
       # Debug/Release resolve libvlc-all and medialibrary-all from Maven Central.
-      - name: Generate local.properties
+      - name: Prepare project layout and local.properties
         run: |
+          # settings.gradle includes :libvlcjni:libvlc. Gradle 9.6 refuses to
+          # configure a project whose directory does not exist. Upstream
+          # compile.sh clones the whole VLC native tree here, but a Debug build
+          # resolves libvlc-all from Maven Central and only needs the directory.
+          mkdir -p libvlcjni/libvlc
           cat > local.properties <<EOF
           sdk.dir=${ANDROID_HOME}
           android.ndkPath=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}

@@ -70,6 +70,7 @@
 ```bash
 export ANDROID_SDK=/path/to/android-sdk
 export ANDROID_NDK=$ANDROID_SDK/ndk/27.0.12077973
+mkdir -p libvlcjni/libvlc        # settings.gradle 引用该目录；Debug 构建只需目录存在
 cat > local.properties <<EOF
 sdk.dir=$ANDROID_SDK
 android.ndkPath=$ANDROID_NDK
