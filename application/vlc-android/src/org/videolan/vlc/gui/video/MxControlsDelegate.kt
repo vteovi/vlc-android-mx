@@ -250,7 +250,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             setSingleLine(true)
             hint = player.getString(R.string.mx_ratio_custom_hint)
             setText(lastCustomRatio)
-            setSelection(text.length)
+            setSelection(lastCustomRatio.length)
         }
         val padding = (20 * player.resources.displayMetrics.density).toInt()
         val container = FrameLayout(player).apply {
