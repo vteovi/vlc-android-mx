@@ -544,7 +544,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
                 .show()
     }
 
-    private fun applyOrientation(value: Int, label: CharSequence) {
+    private fun applyOrientation(value: Int, label: String) {
         if (value == ORIENTATION_AUTO) {
             // Release the lock so the activity follows the device again.
             player.orientationMode.locked = false
