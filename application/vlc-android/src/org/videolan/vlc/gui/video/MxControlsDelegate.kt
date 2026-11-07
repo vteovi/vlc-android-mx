@@ -14,14 +14,20 @@
  */
 package org.videolan.vlc.gui.video
 
+import android.content.pm.ActivityInfo
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
+import org.videolan.libvlc.MediaPlayer
 import org.videolan.tools.Settings
 import org.videolan.vlc.R
 
@@ -53,6 +59,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private var speedIndex = 0
     private var mxEnabled = true
     private var tracking = false
+    private var lastCustomRatio = "9:16"
 
     private val hideRunnable = Runnable { hide() }
     private val ticker = object : Runnable {
@@ -65,17 +72,22 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
     init {
         seekBar.max = 1000
-        titleView.text = player.title
+        titleView.text = mediaTitle()
         bindButtons()
         root.postDelayed(ticker, 500L)
     }
+
+    /** The toolbar shows the media name, not the app label. */
+    private fun mediaTitle(): CharSequence =
+            player.service?.currentMediaWrapper?.title ?: player.title
 
     private fun bindButtons() {
         root.findViewById<View>(R.id.mx_back).setOnClickListener { player.finish() }
         root.findViewById<View>(R.id.mx_play).setOnClickListener { togglePlayPause() }
         root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-10) }
         root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(10) }
-        root.findViewById<View>(R.id.mx_ratio).setOnClickListener { player.resizeVideo(); show() }
+        root.findViewById<View>(R.id.mx_ratio).setOnClickListener { showRatioMenu() }
+        root.findViewById<View>(R.id.mx_rotate).setOnClickListener { rotateScreen() }
         root.findViewById<View>(R.id.mx_tracks).setOnClickListener { player.overlayDelegate.showTracks(); show() }
         root.findViewById<View>(R.id.mx_lock).setOnClickListener { player.mxGestureDelegate.setLocked(true) }
         speedView.setOnClickListener { cycleSpeed() }
@@ -130,6 +142,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
     private fun updateProgress() {
         val service = player.service ?: return
+        val title = mediaTitle().toString()
+        if (titleView.text.toString() != title) titleView.text = title
         val length = service.length
         val position = player.time
         timeView.text = formatTime(position)
@@ -184,6 +198,111 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     fun release() {
         handler.removeCallbacksAndMessages(null)
         root.removeCallbacks(ticker)
+    }
+
+    /**
+     * Aspect ratio picker.
+     *
+     * Portrait ratios such as 9:16 are not part of libVLC's [MediaPlayer.ScaleType] enum, so fixed
+     * ratios are applied through the aspect-ratio property combined with a fit-to-screen scaling.
+     */
+    private fun showRatioMenu() {
+        show()
+        val labels = arrayOf(
+                player.getString(R.string.mx_ratio_auto),
+                player.getString(R.string.mx_ratio_fit),
+                player.getString(R.string.mx_ratio_fill),
+                "16:9", "4:3", "1:1", "9:16", "21:9",
+                player.getString(R.string.mx_ratio_original),
+                player.getString(R.string.mx_ratio_custom))
+        AlertDialog.Builder(player)
+                .setTitle(R.string.aspect_ratio)
+                .setItems(labels) { _, which -> applyRatioOption(which) }
+                .show()
+    }
+
+    private fun applyRatioOption(index: Int) {
+        when (index) {
+            0 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_BEST_FIT, null, player.getString(R.string.mx_ratio_auto))
+            1 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, null, player.getString(R.string.mx_ratio_fit))
+            2 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FILL, null, player.getString(R.string.mx_ratio_fill))
+            3 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, "16:9", "16:9")
+            4 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, "4:3", "4:3")
+            5 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, "1:1", "1:1")
+            6 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, "9:16", "9:16")
+            7 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, "21:9", "21:9")
+            8 -> setVideoRatio(MediaPlayer.ScaleType.SURFACE_ORIGINAL, null, player.getString(R.string.mx_ratio_original))
+            else -> askCustomRatio()
+        }
+    }
+
+    private fun setVideoRatio(scale: MediaPlayer.ScaleType, aspect: String?, label: String) {
+        val service = player.service ?: return
+        service.playlistManager.player.setVideoAspectRatio(aspect)
+        service.mediaplayer.videoScale = scale
+        player.mxGestureDelegate.showHint(R.drawable.ic_player_ratio, label)
+        show()
+    }
+
+    private fun askCustomRatio() {
+        val input = AppCompatEditText(player).apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+            hint = player.getString(R.string.mx_ratio_custom_hint)
+            setText(lastCustomRatio)
+            setSelection(text.length)
+        }
+        val padding = (20 * player.resources.displayMetrics.density).toInt()
+        val container = FrameLayout(player).apply {
+            setPadding(padding, padding / 2, padding, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(player)
+                .setTitle(R.string.mx_ratio_custom)
+                .setMessage(R.string.mx_ratio_custom_message)
+                .setView(container)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    val value = normalizeAspect(input.text?.toString().orEmpty())
+                    if (value == null) {
+                        player.mxGestureDelegate.showHint(R.drawable.ic_player_ratio,
+                                player.getString(R.string.mx_ratio_invalid))
+                    } else {
+                        lastCustomRatio = value
+                        setVideoRatio(MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, value,
+                                player.getString(R.string.mx_ratio_applied, value))
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+    }
+
+    /** Accepts `w:h`, `w/h` and the full width colon, and returns it in the `w:h` form libVLC expects. */
+    private fun normalizeAspect(raw: String): String? {
+        val text = raw.trim().replace('：', ':').replace('/', ':')
+        val parts = text.split(':')
+        if (parts.size != 2) return null
+        val width = parts[0].trim().toFloatOrNull() ?: return null
+        val height = parts[1].trim().toFloatOrNull() ?: return null
+        if (width <= 0f || height <= 0f) return null
+        return "${parts[0].trim()}:${parts[1].trim()}"
+    }
+
+    /** Rotate the activity by 90 degrees on every tap, like MX Player's rotate button. */
+    private fun rotateScreen() {
+        val next = when (player.orientationMode.orientation) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        player.setOrientation(next)
+        val label = when (next) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT ->
+                player.getString(R.string.mx_rotation_portrait)
+            else -> player.getString(R.string.mx_rotation_landscape)
+        }
+        player.mxGestureDelegate.showHint(R.drawable.ic_player_rotate, label)
+        show()
     }
 
     private fun formatTime(ms: Long): String {

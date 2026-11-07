@@ -160,6 +160,12 @@ class MxGestureDelegate(
 
     fun hideControls() = controls.hide()
 
+    /** Short centred feedback used by the MX control buttons (ratio, rotation, …). */
+    fun showHint(iconRes: Int, title: String) {
+        showPanel(iconRes, title, "", 100, 100)
+        hidePanelDelayed()
+    }
+
     fun reloadSettings() {
         val prefs = Settings.getInstance(player)
         enabled = prefs.getBoolean(MX_GESTURE_MODE, true)

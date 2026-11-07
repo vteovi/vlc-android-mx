@@ -1482,4 +1482,16 @@
     <string name="mx_zero_time" translatable="false">00:00</string>
     <string name="mx_speed_default" translatable="false">1.0x</string>
     <string name="mx_speed_value" translatable="false">%1$.2fx</string>
+    <string name="mx_rotate">Rotate screen</string>
+    <string name="mx_rotation_portrait">Portrait</string>
+    <string name="mx_rotation_landscape">Landscape</string>
+    <string name="mx_ratio_auto">Auto (best fit)</string>
+    <string name="mx_ratio_fit">Fit screen</string>
+    <string name="mx_ratio_fill">Fill screen (crop)</string>
+    <string name="mx_ratio_original">Original size</string>
+    <string name="mx_ratio_custom">Custom ratio…</string>
+    <string name="mx_ratio_custom_hint" translatable="false">9:16</string>
+    <string name="mx_ratio_custom_message">Enter a ratio as width:height, for example 9:16 for vertical videos.</string>
+    <string name="mx_ratio_invalid">Invalid ratio, use the form width:height</string>
+    <string name="mx_ratio_applied">Ratio %1$s</string>
 </resources>
