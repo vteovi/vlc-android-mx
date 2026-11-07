@@ -193,6 +193,17 @@
                 android:orientation="horizontal"
                 android:paddingTop="4dp">
 
+            <ImageView
+                    android:id="@+id/mx_prev"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="4dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:contentDescription="@string/mx_previous"
+                    android:padding="10dp"
+                    android:tint="#FFFFFFFF"
+                    app:srcCompat="@drawable/ic_previous" />
+
             <FrameLayout
                     android:id="@+id/mx_rewind"
                     android:layout_width="52dp"
@@ -225,8 +236,8 @@
                     android:id="@+id/mx_play"
                     android:layout_width="56dp"
                     android:layout_height="56dp"
-                    android:layout_marginLeft="24dp"
-                    android:layout_marginRight="24dp"
+                    android:layout_marginLeft="12dp"
+                    android:layout_marginRight="12dp"
                     android:background="?android:attr/selectableItemBackground"
                     android:contentDescription="@string/mx_play_pause"
                     android:padding="10dp"
@@ -260,6 +271,17 @@
                         android:textSize="10sp"
                         android:textStyle="bold" />
             </FrameLayout>
+
+            <ImageView
+                    android:id="@+id/mx_next"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:contentDescription="@string/mx_next"
+                    android:padding="10dp"
+                    android:tint="#FFFFFFFF"
+                    app:srcCompat="@drawable/ic_next" />
         </LinearLayout>
     </LinearLayout>
 

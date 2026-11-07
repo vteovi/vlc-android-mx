@@ -1503,4 +1503,12 @@
     <string name="mx_ratio_applied">Ratio %1$s</string>
     <string name="mx_ratio">Picture ratio</string>
     <string name="mx_ratio_long_press">Picture ratio, long press to choose</string>
+    <string name="mx_previous">Previous</string>
+    <string name="mx_next">Next</string>
+    <string name="mx_no_previous">Already at the first item</string>
+    <string name="mx_no_next">Already at the last item</string>
+    <string name="mx_orientation_menu">Screen orientation</string>
+    <string name="mx_rotation_auto">Auto (follow device)</string>
+    <string name="mx_rotation_reverse_portrait">Reverse portrait</string>
+    <string name="mx_rotation_reverse_landscape">Reverse landscape</string>
 </resources>

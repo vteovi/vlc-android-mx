@@ -49,11 +49,20 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         private val SPEEDS = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
 
         /**
+         * Short list used by the single tap cycle on the speed button: one tap = next common
+         * speed, the full [SPEEDS] list stays behind a long press.
+         */
+        private val QUICK_SPEEDS = floatArrayOf(0.5f, 1f, 1.25f, 1.5f, 2f)
+
+        /**
          * Preset order followed by the single tap cycle on the ratio button: auto, fit, fill,
          * 16:9, 4:3, 1:1, 9:16, 21:9, original. The custom ratio (index 9) is only reachable
          * through the long press menu.
          */
         private val RATIO_CYCLE = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8)
+
+        /** Sentinel used by the orientation menu to mean "follow the device sensor". */
+        private const val ORIENTATION_AUTO = -1
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -67,6 +76,9 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val lengthView: TextView = root.findViewById(R.id.mx_length)
     private val speedView: TextView = root.findViewById(R.id.mx_speed)
     private val repeatView: ImageView = root.findViewById(R.id.mx_repeat)
+    private val prevButton: ImageView = root.findViewById(R.id.mx_prev)
+    private val nextButton: ImageView = root.findViewById(R.id.mx_next)
+    private val rotateButton: View = root.findViewById(R.id.mx_rotate)
     private val seekBar: SeekBar = root.findViewById(R.id.mx_seekbar)
     private val playButton: ImageView = root.findViewById(R.id.mx_play)
     private val rewindLabel: TextView = root.findViewById(R.id.mx_rewind_label)
@@ -105,6 +117,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private fun bindButtons() {
         root.findViewById<View>(R.id.mx_back).setOnClickListener { player.finish() }
         root.findViewById<View>(R.id.mx_play).setOnClickListener { togglePlayPause() }
+        prevButton.setOnClickListener { playPrevious() }
+        nextButton.setOnClickListener { playNext() }
         root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-jumpSeconds) }
         root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(jumpSeconds) }
         // Single tap cycles the presets (same idea as the stock VLC ratio toggle),
@@ -117,14 +131,25 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             }
             contentDescription = player.getString(R.string.mx_ratio_long_press)
         }
-        root.findViewById<View>(R.id.mx_rotate).setOnClickListener { rotateScreen() }
+        // Single tap rotates 90 degrees, long press picks an explicit orientation.
+        rotateButton.apply {
+            setOnClickListener { rotateScreen() }
+            setOnLongClickListener {
+                showOrientationMenu()
+                true
+            }
+        }
         root.findViewById<View>(R.id.mx_repeat).setOnClickListener { cycleRepeatMode() }
         root.findViewById<View>(R.id.mx_tracks).setOnClickListener {
             hide(true)
             player.overlayDelegate.showTracks()
         }
         root.findViewById<View>(R.id.mx_lock).setOnClickListener { player.mxGestureDelegate.setLocked(true) }
-        speedView.setOnClickListener { showSpeedMenu() }
+        speedView.setOnClickListener { cycleSpeed() }
+        speedView.setOnLongClickListener {
+            showSpeedMenu()
+            true
+        }
         // Popup (PiP / floating window) and the stock options sheet are still reachable in MX mode.
         root.findViewById<View>(R.id.mx_popup).setOnClickListener { switchToPopup() }
         root.findViewById<View>(R.id.mx_more).setOnClickListener {
@@ -159,6 +184,15 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         if (service.isPlaying) service.pause() else player.play()
         updateProgress()
         show()
+    }
+
+    /** Single tap on the speed button: step through the short list of common speeds. */
+    private fun cycleSpeed() {
+        val current = player.service?.rate ?: 1f
+        val position = QUICK_SPEEDS.indexOfFirst { abs(it - current) < 0.01f }
+        val next = if (position >= 0) QUICK_SPEEDS[(position + 1) % QUICK_SPEEDS.size]
+        else QUICK_SPEEDS.firstOrNull { it > current } ?: QUICK_SPEEDS[0]
+        applyRate(next)
     }
 
     /** MX Player style speed sheet: pick a rate from 0.25x to 4x. */
@@ -226,8 +260,31 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         player.switchToPopup()
     }
 
-    private fun seekBy(seconds: Int) {
+    /** Previous item of the playlist, with a hint when there is none. */
+    private fun playPrevious() {
         val service = player.service ?: return
+        if (!service.hasPrevious()) {
+            player.mxGestureDelegate.showHint(R.drawable.ic_previous, player.getString(R.string.mx_no_previous))
+            show()
+            return
+        }
+        service.previous(false)
+        show()
+    }
+
+    /** Next item of the playlist, with a hint when there is none. */
+    private fun playNext() {
+        val service = player.service ?: return
+        if (!service.hasNext()) {
+            player.mxGestureDelegate.showHint(R.drawable.ic_next, player.getString(R.string.mx_no_next))
+            show()
+            return
+        }
+        service.next()
+        show()
+    }
+
+    private fun seekBy(seconds: Int) {        val service = player.service ?: return
         val length = service.length
         if (length <= 0L) return
         val target = (player.time + seconds * 1000L).coerceIn(0L, length)
@@ -255,6 +312,9 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         }
         val icon = if (service.isPlaying) R.drawable.ic_pause_player else R.drawable.ic_play_player
         playButton.setImageDrawable(ContextCompat.getDrawable(player, icon))
+        // Dim the playlist buttons when there is nothing to jump to.
+        prevButton.alpha = if (service.hasPrevious()) 1f else 0.35f
+        nextButton.alpha = if (service.hasNext()) 1f else 0.35f
     }
 
     fun show() {
@@ -415,6 +475,45 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         val height = parts[1].trim().toFloatOrNull() ?: return null
         if (width <= 0f || height <= 0f) return null
         return "${parts[0].trim()}:${parts[1].trim()}"
+    }
+
+    /** Long press on the rotate button: pin one orientation or go back to the sensor. */
+    private fun showOrientationMenu() {
+        show()
+        val values = intArrayOf(
+                ORIENTATION_AUTO,
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+                ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE)
+        val labels = arrayOf(
+                player.getString(R.string.mx_rotation_auto),
+                player.getString(R.string.mx_rotation_portrait),
+                player.getString(R.string.mx_rotation_reverse_portrait),
+                player.getString(R.string.mx_rotation_landscape),
+                player.getString(R.string.mx_rotation_reverse_landscape))
+        val checked = if (!player.orientationMode.locked) 0
+        else values.indexOf(player.requestedOrientation).takeIf { it >= 0 } ?: 1
+        AlertDialog.Builder(player)
+                .setTitle(R.string.mx_orientation_menu)
+                .setSingleChoiceItems(labels, checked) { dialog, which ->
+                    dialog.dismiss()
+                    applyOrientation(values[which], labels[which])
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+    }
+
+    private fun applyOrientation(value: Int, label: CharSequence) {
+        if (value == ORIENTATION_AUTO) {
+            // Release the lock so the activity follows the device again.
+            player.orientationMode.locked = false
+            player.requestedOrientation = player.getScreenOrientation(player.orientationMode)
+        } else {
+            player.setOrientation(value)
+        }
+        player.mxGestureDelegate.showHint(R.drawable.ic_player_rotate, label)
+        show()
     }
 
     /** Rotate the activity by 90 degrees on every tap, like MX Player's rotate button. */

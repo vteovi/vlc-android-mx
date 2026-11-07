@@ -1461,4 +1461,12 @@
     <string name="mx_ratio_applied">畫面比例 %1$s</string>
     <string name="mx_ratio">畫面比例</string>
     <string name="mx_ratio_long_press">畫面比例，長按可選擇</string>
+    <string name="mx_previous">上一個</string>
+    <string name="mx_next">下一個</string>
+    <string name="mx_no_previous">已經是第一項了</string>
+    <string name="mx_no_next">已經是最後一項了</string>
+    <string name="mx_orientation_menu">螢幕方向</string>
+    <string name="mx_rotation_auto">自動（跟隨裝置）</string>
+    <string name="mx_rotation_reverse_portrait">反向直向</string>
+    <string name="mx_rotation_reverse_landscape">反向橫向</string>
     </resources>
