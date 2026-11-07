@@ -2573,7 +2573,9 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             overlayDelegate.updateScreenshotButton()
         }
         ENABLE_SEEK_BUTTONS -> overlayDelegate.seekButtons = settings.getBoolean(ENABLE_SEEK_BUTTONS, false)
-        else -> if (key.startsWith("mx_") && ::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
+        else -> {
+            if (key.startsWith("mx_") && ::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
+        }
     }
 
     companion object {
