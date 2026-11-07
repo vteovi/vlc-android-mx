@@ -2575,6 +2575,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         ENABLE_SEEK_BUTTONS -> overlayDelegate.seekButtons = settings.getBoolean(ENABLE_SEEK_BUTTONS, false)
         else -> {
             if (key.startsWith("mx_") && ::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
+            Unit
         }
     }
 
