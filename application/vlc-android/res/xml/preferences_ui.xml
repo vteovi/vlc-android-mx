@@ -52,10 +52,9 @@
     <CheckBoxPreference
         app:singleLineTitle="false"
         android:key="browser_show_hidden_files"
-        android:defaultValue="false"
-        app:isPreferenceVisible="false"
-        android:summary="@string/tv_show_hidden_files_summary"
-        android:title="@string/tv_show_hidden_files"/>
+        android:defaultValue="true"
+        android:summary="@string/show_hidden_folders_summary"
+        android:title="@string/show_hidden_folders_title"/>
 
     <CheckBoxPreference
             app:singleLineTitle="false"

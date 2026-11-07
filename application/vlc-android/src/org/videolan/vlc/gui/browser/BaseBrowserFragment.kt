@@ -192,6 +192,8 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
     protected abstract fun browseRoot()
     private var needToRefreshMeta = false
     private var enqueuingSnackbar: Snackbar? = null
+    // Tracks the "show hidden folders" switch so a change made in the settings refreshes the list.
+    private var lastShowHiddenFiles = Settings.showHiddenFiles
     private lateinit var startedScope: CoroutineScope
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -449,6 +451,12 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
 
     override fun onResume() {
         super.onResume()
+        // "Show hidden folders" may have been toggled in the settings while this list stayed
+        // in the back stack, in which case the listing has to be rebuilt.
+        if (lastShowHiddenFiles != Settings.showHiddenFiles) {
+            lastShowHiddenFiles = Settings.showHiddenFiles
+            refresh()
+        }
         val playlistModel = PlaylistModel.get(this)
         adapter.setModel(playlistModel)
         playlistModel.dataset.asFlow().conflate().onEach {

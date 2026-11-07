@@ -36,6 +36,7 @@ import androidx.preference.TwoStatePreference
 import org.videolan.medialibrary.Tools
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.resources.AndroidDevices
+import org.videolan.tools.BROWSER_SHOW_HIDDEN_FILES
 import org.videolan.tools.KEY_APP_THEME
 import org.videolan.tools.KEY_ARTISTS_SHOW_ALL
 import org.videolan.tools.KEY_BLACK_THEME
@@ -173,6 +174,10 @@ class PreferencesUi : BasePreferenceFragment(), SharedPreferences.OnSharedPrefer
             KEY_INCLUDE_MISSING -> {
                 Settings.includeMissing = sharedPreferences.getBoolean(key, true)
                 (activity as PreferencesActivity).setRestart()
+            }
+            BROWSER_SHOW_HIDDEN_FILES -> {
+                // Applies to the file browser right away, no restart needed.
+                Settings.showHiddenFiles = sharedPreferences.getBoolean(BROWSER_SHOW_HIDDEN_FILES, true)
             }
         }
     }

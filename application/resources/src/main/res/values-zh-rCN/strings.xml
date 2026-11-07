@@ -535,6 +535,8 @@
     <string name="tv_folders_first_summary">在文件浏览器中，将文件夹显示在前面，文件显示在后面</string>
     <string name="tv_show_hidden_files">显示隐藏文件</string>
     <string name="tv_show_hidden_files_summary">在文件浏览器中显示隐藏文件</string>
+    <string name="show_hidden_folders_title">显示隐藏文件夹</string>
+    <string name="show_hidden_folders_summary">在浏览界面显示以点（.）开头的隐藏文件夹和文件。媒体库不会收录这些目录</string>
     <string name="ab_repeat_fastseek_warning">已启用快速定位。可能导致精确度问题</string>
 
     <string name="extensions_prefs_category">扩展</string>

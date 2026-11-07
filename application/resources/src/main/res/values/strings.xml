@@ -563,6 +563,8 @@
     <string name="tv_folders_first_summary">Show folders and then files in the file browser</string>
     <string name="tv_show_hidden_files">Show hidden files</string>
     <string name="tv_show_hidden_files_summary">Show hidden files in the file browser</string>
+    <string name="show_hidden_folders_title">Show hidden folders</string>
+    <string name="show_hidden_folders_summary">Show folders and files whose name starts with a dot in the browser. The media library does not index them</string>
     <string name="ab_repeat_fastseek_warning">Fast seek is enabled. It can lead to precision issues</string>
 
     <string name="extensions_prefs_category">Extensions</string>

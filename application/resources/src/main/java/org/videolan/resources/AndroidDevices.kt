@@ -27,6 +27,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Build.VERSION_CODES
 import android.os.Environment
+import android.os.storage.StorageManager
 import android.telephony.TelephonyManager
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -111,8 +112,44 @@ object AndroidDevices {
                 close(bufReader)
             }
             list.remove(EXTERNAL_PUBLIC_DIRECTORY)
+            // Since Android 8 the app mount namespace no longer exposes removable volumes in
+            // /proc/mounts, so ask the framework for one app specific directory per volume and
+            // strip the /Android/data/<package>/files suffix to recover the volume root.
+            addStorageVolumeRoots(list)
             return list
         }
+
+    /**
+     * Recovers the root of every mounted volume (SD card, USB OTG) the app can see.
+     * [Context.getExternalFilesDirs] returns one path per volume on API 19+, and
+     * [StorageManager.getStorageVolumes] fills the gaps on API 30+.
+     */
+    private fun addStorageVolumeRoots(list: MutableList<String>) {
+        val ctx = AppContextProvider.appContext
+        val suffix = "/Android/data/${ctx.packageName}/files"
+        try {
+            ctx.getExternalFilesDirs(null).forEach { dir ->
+                val path = dir?.absolutePath ?: return@forEach
+                val root = when {
+                    path.endsWith(suffix) -> path.removeSuffix(suffix)
+                    path.contains("/Android/data/") -> path.substringBefore("/Android/data/")
+                    else -> path
+                }.trimEnd('/')
+                if (root.isNotEmpty() && root != EXTERNAL_PUBLIC_DIRECTORY && !list.contains(root)) list.add(root)
+            }
+        } catch (ignored: Exception) {
+        }
+        if (Build.VERSION.SDK_INT >= VERSION_CODES.R) {
+            try {
+                val storageManager = ctx.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
+                storageManager?.storageVolumes?.forEach { volume ->
+                    val root = volume.directory?.absolutePath?.trimEnd('/') ?: return@forEach
+                    if (root.isNotEmpty() && root != EXTERNAL_PUBLIC_DIRECTORY && !list.contains(root)) list.add(root)
+                }
+            } catch (ignored: Exception) {
+            }
+        }
+    }
 
     private val isManufacturerBannedForMediastyleNotifications: Boolean
         get() {

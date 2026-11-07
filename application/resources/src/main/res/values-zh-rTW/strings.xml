@@ -535,6 +535,8 @@
     <string name="tv_folders_first_summary">在檔案瀏覽器中將資料夾顯示在前面，然後才顯示檔案</string>
     <string name="tv_show_hidden_files">顯示隱藏的檔案</string>
     <string name="tv_show_hidden_files_summary">在檔案瀏覽器中顯示隱藏的檔案</string>
+    <string name="show_hidden_folders_title">顯示隱藏資料夾</string>
+    <string name="show_hidden_folders_summary">在瀏覽介面顯示以點（.）開頭的隱藏資料夾與檔案。媒體庫不會收錄這些目錄</string>
     <string name="ab_repeat_fastseek_warning">已啟用快速搜尋。這可能會導致精度問題</string>
 
     <string name="extensions_prefs_category">擴充套件</string>
