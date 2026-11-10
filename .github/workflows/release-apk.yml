@@ -1,20 +1,43 @@
 name: Publish Release APK
 
 # Takes the APK produced by "Build MX-style VLC APK" and attaches it to a GitHub
-# release. Running the upload on a runner avoids pushing a ~120 MB binary through
+# release. Running the upload on a runner avoids pushing a ~130 MB binary through
 # a slow client connection.
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, must already exist (e.g. v3.15.0)'
+        description: 'Release tag, must already exist (e.g. v3.15.1)'
         required: true
-        default: 'v3.15.0'
+        default: 'v3.15.1'
       run_id:
-        description: 'Build run id to take the APK from (empty = latest successful build)'
+        description: 'Build run id (empty = latest successful run of workflow_file)'
         required: false
         default: ''
+      workflow_file:
+        description: 'Workflow that produced the artifact'
+        required: true
+        default: 'build-apk.yml'
+        type: choice
+        options:
+          - build-apk.yml
+      artifact_name:
+        description: 'Artifact name to download'
+        required: true
+        default: 'vlc-mx-release-apk'
+        type: choice
+        options:
+          - vlc-mx-release-apk
+          - vlc-mx-debug-apk
+      apk_suffix:
+        description: 'Suffix used in the uploaded file name'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
 
 permissions:
   contents: write
@@ -29,24 +52,27 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG: ${{ inputs.tag }}
       RUN_ID_INPUT: ${{ inputs.run_id }}
+      WORKFLOW_FILE: ${{ inputs.workflow_file }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      APK_SUFFIX: ${{ inputs.apk_suffix }}
     steps:
       - name: Resolve build run
         id: resolve
         run: |
           RUN_ID="$RUN_ID_INPUT"
           if [ -z "$RUN_ID" ]; then
-            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow=build-apk.yml \
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow="$WORKFLOW_FILE" \
               --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
           fi
           test -n "$RUN_ID"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "Using build run: $RUN_ID"
+          echo "Using build run: $RUN_ID ($WORKFLOW_FILE)"
 
       - name: Download APK artifact
         run: |
           mkdir -p dist
           gh run download "${{ steps.resolve.outputs.run_id }}" \
-            --repo "$GITHUB_REPOSITORY" -n vlc-mx-debug-apk -D dist
+            --repo "$GITHUB_REPOSITORY" -n "$ARTIFACT_NAME" -D dist
           find dist -type f -printf '%10s  %p\n' | sort -k2
 
       - name: Upload APK to release
@@ -54,7 +80,7 @@ jobs:
           set -euo pipefail
           APK=$(find dist -name '*.apk' | head -1)
           test -n "$APK"
-          OUT="VLC-MX-${TAG}-debug.apk"
+          OUT="VLC-MX-${TAG}-${APK_SUFFIX}.apk"
           cp "$APK" "$OUT"
           ls -l "$OUT"
           gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber

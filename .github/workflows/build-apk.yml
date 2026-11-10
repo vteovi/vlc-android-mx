@@ -11,6 +11,15 @@ on:
       - 'buildsystem/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Build variant: debug (default) or release (signed, applicationId org.videolan.vlc)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -18,7 +27,7 @@ concurrency:
 
 jobs:
   build:
-    name: assembleDebug on GitHub runner
+    name: Build ${{ env.VARIANT }} APK on GitHub runner
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -26,6 +35,7 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_NDK_VERSION: 27.0.12077973
       GRADLE_VERSION: 9.6.0
+      VARIANT: ${{ inputs.variant || 'debug' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,10 +84,30 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Build debug APK
+      - name: Build ${{ env.VARIANT }} APK
         run: |
           gradle --version
-          gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g assembleDebug
+          if [ "$VARIANT" = "release" ]; then
+            # signedRelease + -PmxUniversalApk: one APK with every ABI, signed with the
+            # key in application/app/mx-release.jks (see gradle.properties).
+            gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g \
+              assembleSignedRelease -PmxUniversalApk=true
+          else
+            gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g assembleDebug
+          fi
+
+      - name: Verify APK metadata
+        run: |
+          set -euo pipefail
+          APK=$(find application/app/build/outputs -name "*.apk" -type f | head -1)
+          test -n "$APK"
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -r | head -1)
+          echo "== package / sdk =="
+          "$AAPT2" dump badging "$APK" | grep -E "^package:|^sdkVersion|^targetSdkVersion|application-debuggable" || true
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -r | head -1)
+          echo "== signature =="
+          "$APKSIGNER" verify --print-certs "$APK" | head -12
+          if "$APKSIGNER" verify "$APK"; then echo "SIGNATURE_OK"; else echo "SIGNATURE_INVALID"; exit 1; fi
 
       - name: Collect APK files
         run: |
@@ -88,7 +118,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vlc-mx-debug-apk
+          name: vlc-mx-${{ env.VARIANT }}-apk
           path: apk-out/*.apk
           if-no-files-found: error
           retention-days: 30

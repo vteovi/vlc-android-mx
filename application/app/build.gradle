@@ -127,7 +127,9 @@ android {
                 }
                 return false // continue
             }
-            enable = isReleaseBuild
+            // -PmxUniversalApk keeps every ABI in a single APK, which is what the MX
+            // releases ship: one file to download instead of four per-ABI splits.
+            enable = isReleaseBuild && !project.hasProperty('mxUniversalApk')
             reset()
             include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
 //            universalApk !isReleaseBuild
