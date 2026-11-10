@@ -27,7 +27,8 @@ concurrency:
 
 jobs:
   build:
-    name: Build ${{ env.VARIANT }} APK on GitHub runner
+    # env.* is not available in a job-level name, inputs.* is.
+    name: Build ${{ inputs.variant || 'debug' }} APK on GitHub runner
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -84,7 +85,7 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Build ${{ env.VARIANT }} APK
+      - name: Build ${{ inputs.variant || 'debug' }} APK
         run: |
           gradle --version
           if [ "$VARIANT" = "release" ]; then
