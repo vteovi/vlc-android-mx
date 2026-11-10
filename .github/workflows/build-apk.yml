@@ -89,10 +89,11 @@ jobs:
         run: |
           gradle --version
           if [ "$VARIANT" = "release" ]; then
-            # signedRelease + -PmxUniversalApk: one APK with every ABI, signed with the
-            # key in application/app/mx-release.jks (see gradle.properties).
+            # assembleSignedRelease keeps the upstream ABI split: four signed APKs
+            # (armeabi-v7a / arm64-v8a / x86 / x86_64), keyed by
+            # application/app/mx-release.jks (see gradle.properties).
             gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g \
-              assembleSignedRelease -PmxUniversalApk=true
+              assembleSignedRelease
           else
             gradle --no-daemon --max-workers=4 -Dorg.gradle.jvmargs=-Xmx6g assembleDebug
           fi
@@ -100,15 +101,19 @@ jobs:
       - name: Verify APK metadata
         run: |
           set -euo pipefail
-          APK=$(find application/app/build/outputs -name "*.apk" -type f | head -1)
-          test -n "$APK"
           AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -r | head -1)
-          echo "== package / sdk =="
-          "$AAPT2" dump badging "$APK" | grep -E "^package:|^sdkVersion|^targetSdkVersion|application-debuggable" || true
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -r | head -1)
-          echo "== signature =="
-          "$APKSIGNER" verify --print-certs "$APK" | head -12
-          if "$APKSIGNER" verify "$APK"; then echo "SIGNATURE_OK"; else echo "SIGNATURE_INVALID"; exit 1; fi
+          mapfile -t APKS < <(find application/app/build/outputs -name "*.apk" -type f | sort)
+          test "${#APKS[@]}" -gt 0
+          echo "== ${#APKS[@]} APK(s) built =="
+          for APK in "${APKS[@]}"; do
+            echo "----------------------------------------------------------"
+            echo "## $(basename "$APK")"
+            "$AAPT2" dump badging "$APK" | grep -E "^package:|^sdkVersion|^targetSdkVersion|application-debuggable" || true
+            echo "-- signature --"
+            "$APKSIGNER" verify --print-certs "$APK" | head -6
+            if "$APKSIGNER" verify "$APK"; then echo "SIGNATURE_OK"; else echo "SIGNATURE_INVALID: $APK"; exit 1; fi
+          done
 
       - name: Collect APK files
         run: |
