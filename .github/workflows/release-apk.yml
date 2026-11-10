@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, must already exist (e.g. v3.15.1)'
+        description: 'Release tag, must already exist (e.g. v3.15.2)'
         required: true
-        default: 'v3.15.1'
+        default: 'v3.15.2'
       run_id:
         description: 'Build run id (empty = latest successful run of workflow_file)'
         required: false
@@ -78,12 +78,34 @@ jobs:
       - name: Upload APK to release
         run: |
           set -euo pipefail
-          APK=$(find dist -name '*.apk' | head -1)
-          test -n "$APK"
-          OUT="VLC-MX-${TAG}-${APK_SUFFIX}.apk"
-          cp "$APK" "$OUT"
-          ls -l "$OUT"
-          gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+          mapfile -t APKS < <(find dist -name '*.apk' -type f | sort)
+          test "${#APKS[@]}" -gt 0
+          echo "Found ${#APKS[@]} APK(s)"
+          UPLOADS=()
+          for APK in "${APKS[@]}"; do
+            BASE=$(basename "$APK" .apk)
+            # Upstream names per-ABI splits <name>-<abi>, keep that suffix so the
+            # four release assets stay distinguishable on the release page.
+            ABI=""
+            for CANDIDATE in armeabi-v7a arm64-v8a x86_64 x86 all; do
+              case "$BASE" in
+                *-"$CANDIDATE") ABI="$CANDIDATE"; break ;;
+              esac
+            done
+            # Release builds are never named "-debug", so strip a trailing -all.
+            if [ "$ABI" = "all" ]; then
+              OUT="VLC-MX-${TAG}-${APK_SUFFIX}.apk"
+            elif [ -n "$ABI" ]; then
+              OUT="VLC-MX-${TAG}-${ABI}-${APK_SUFFIX}.apk"
+            else
+              OUT="VLC-MX-${TAG}-${BASE##*-}-${APK_SUFFIX}.apk"
+            fi
+            cp "$APK" "$OUT"
+            echo "  $(basename "$APK")  ->  $OUT"
+            UPLOADS+=("$OUT")
+          done
+          ls -l "${UPLOADS[@]}"
+          gh release upload "$TAG" "${UPLOADS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           echo "--- assets on $TAG ---"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
             --json assets --jq '.assets[] | "\(.name)  \(.size) bytes  state=\(.state)"'
