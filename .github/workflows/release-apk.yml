@@ -1,0 +1,63 @@
+name: Publish Release APK
+
+# Takes the APK produced by "Build MX-style VLC APK" and attaches it to a GitHub
+# release. Running the upload on a runner avoids pushing a ~120 MB binary through
+# a slow client connection.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, must already exist (e.g. v3.15.0)'
+        required: true
+        default: 'v3.15.0'
+      run_id:
+        description: 'Build run id to take the APK from (empty = latest successful build)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Attach APK to release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ inputs.tag }}
+      RUN_ID_INPUT: ${{ inputs.run_id }}
+    steps:
+      - name: Resolve build run
+        id: resolve
+        run: |
+          RUN_ID="$RUN_ID_INPUT"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow=build-apk.yml \
+              --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
+          fi
+          test -n "$RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "Using build run: $RUN_ID"
+
+      - name: Download APK artifact
+        run: |
+          mkdir -p dist
+          gh run download "${{ steps.resolve.outputs.run_id }}" \
+            --repo "$GITHUB_REPOSITORY" -n vlc-mx-debug-apk -D dist
+          find dist -type f -printf '%10s  %p\n' | sort -k2
+
+      - name: Upload APK to release
+        run: |
+          set -euo pipefail
+          APK=$(find dist -name '*.apk' | head -1)
+          test -n "$APK"
+          OUT="VLC-MX-${TAG}-debug.apk"
+          cp "$APK" "$OUT"
+          ls -l "$OUT"
+          gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "--- assets on $TAG ---"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[] | "\(.name)  \(.size) bytes  state=\(.state)"'
