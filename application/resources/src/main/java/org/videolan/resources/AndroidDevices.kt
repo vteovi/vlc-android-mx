@@ -30,6 +30,7 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import android.telephony.TelephonyManager
+import android.util.Log
 import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.core.content.getSystemService
@@ -86,43 +87,55 @@ object AndroidDevices {
     // check that device is in whitelist, and either type or mountpoint is in a whitelist
     val externalStorageDirectories: List<String>
         get() {
-            var bufReader: BufferedReader? = null
-            val list = ArrayList<String>()
-            try {
-                bufReader = BufferedReader(FileReader("/proc/mounts"))
-                var line = bufReader.readLine()
-                while (line != null) {
-
-                    val tokens = StringTokenizer(line, " ")
-                    val device = tokens.nextToken()
-                    val mountpoint = tokens.nextToken().replace("\\\\040".toRegex(), " ")
-                    val type = if (tokens.hasMoreTokens()) tokens.nextToken() else null
-                    if (list.contains(mountpoint) || typeBL.contains(type) || startsWith(mountBL, mountpoint)) {
-                        line = bufReader.readLine()
-                        continue
-                    }
-                    if (startsWith(deviceWL, device) && (typeWL.contains(type) || startsWith(mountWL, mountpoint))) {
-                        val position = containsName(list, mountpoint.getFileNameFromPath())
-                        if (position > -1) list.removeAt(position)
-                        list.add(mountpoint)
-                    }
-                    line = bufReader.readLine()
-                }
-            } catch (ignored: IOException) {
-            } finally {
-                close(bufReader)
+            return try {
+                scanExternalStorageDirectories()
+            } catch (t: Throwable) {
+                // This getter runs on the cold start path (browser, storage provider). A device
+                // specific failure here used to take the whole app down on first launch, so the
+                // worst case is now "only the internal storage is listed".
+                Log.w(TAG, "Unable to enumerate storage volumes", t)
+                listOf(EXTERNAL_PUBLIC_DIRECTORY)
             }
-            // Mount points may point inside a volume (e.g. /storage/1234-ABCD/Android), keep roots.
-            val normalized = list.map { volumeRoot(it) }.distinct()
-            list.clear()
-            list.addAll(normalized)
-            list.remove(EXTERNAL_PUBLIC_DIRECTORY)
-            // Since Android 8 the app mount namespace no longer exposes removable volumes in
-            // /proc/mounts, so ask the framework for one app specific directory per volume and
-            // strip the /Android/data/<package>/files suffix to recover the volume root.
-            addStorageVolumeRoots(list)
-            return list
         }
+
+    private fun scanExternalStorageDirectories(): List<String> {
+        var bufReader: BufferedReader? = null
+        val list = ArrayList<String>()
+        try {
+            bufReader = BufferedReader(FileReader("/proc/mounts"))
+            var line = bufReader.readLine()
+            while (line != null) {
+
+                val tokens = StringTokenizer(line, " ")
+                val device = tokens.nextToken()
+                val mountpoint = tokens.nextToken().replace("\\\\040".toRegex(), " ")
+                val type = if (tokens.hasMoreTokens()) tokens.nextToken() else null
+                if (list.contains(mountpoint) || typeBL.contains(type) || startsWith(mountBL, mountpoint)) {
+                    line = bufReader.readLine()
+                    continue
+                }
+                if (startsWith(deviceWL, device) && (typeWL.contains(type) || startsWith(mountWL, mountpoint))) {
+                    val position = containsName(list, mountpoint.getFileNameFromPath())
+                    if (position > -1) list.removeAt(position)
+                    list.add(mountpoint)
+                }
+                line = bufReader.readLine()
+            }
+        } catch (ignored: IOException) {
+        } finally {
+            close(bufReader)
+        }
+        // Mount points may point inside a volume (e.g. /storage/1234-ABCD/Android), keep roots.
+        val normalized = list.map { volumeRoot(it) }.distinct()
+        list.clear()
+        list.addAll(normalized)
+        list.remove(EXTERNAL_PUBLIC_DIRECTORY)
+        // Since Android 8 the app mount namespace no longer exposes removable volumes in
+        // /proc/mounts, so ask the framework for one app specific directory per volume and
+        // strip the /Android/data/<package>/files suffix to recover the volume root.
+        addStorageVolumeRoots(list)
+        return list
+    }
 
     /**
      * Recovers the root of every mounted volume (SD card, USB OTG) the app can see.
@@ -140,8 +153,13 @@ object AndroidDevices {
             }
         } catch (ignored: Exception) {
         }
-        storageVolumes(ctx).forEach { volume ->
-            volume.directory?.absolutePath?.let { addStorageRoot(list, it) }
+        // StorageVolume.getDirectory() only exists since Android 11 (API 30). On Android 8/10 it
+        // throws NoSuchMethodError, which is an Error, so no catch clause would save us: it has
+        // to be guarded. getExternalFilesDirs() above already covers those versions.
+        if (Build.VERSION.SDK_INT >= VERSION_CODES.R) {
+            storageVolumes(ctx).forEach { volume ->
+                volume.directory?.absolutePath?.let { addStorageRoot(list, it) }
+            }
         }
         // Last resort for volumes hidden from this app: /storage holds one entry per mounted
         // volume on every Android version.
@@ -199,19 +217,23 @@ object AndroidDevices {
     fun storageVolumeLabels(ctx: Context = AppContextProvider.appContext): Map<String, String> {
         val labels = HashMap<String, String>()
         storageVolumes(ctx).forEach { volume ->
-            val path = volume.directory?.absolutePath ?: return@forEach
-            val uuid = volume.uuid
+            val uuid: String? = volume.uuid?.takeIf { it.isNotBlank() }
+            // getDirectory() is API 30+; below that the mount point is /storage/<uuid> on every
+            // version, and the uuid is the only thing the framework exposes anyway.
+            val directoryPath: String? = if (Build.VERSION.SDK_INT >= VERSION_CODES.R) volume.directory?.absolutePath else null
+            val path: String = directoryPath ?: uuid?.let { "/storage/$it" } ?: return@forEach
             val description = try {
                 volume.getDescription(ctx)
             } catch (ignored: Exception) {
                 null
             }
-            val label = when {
-                description.isNullOrBlank() -> uuid
-                uuid.isNullOrBlank() || description.contains(uuid) -> description
-                else -> "$description ($uuid)"
-            } ?: return@forEach
-            labels[volumeRoot(path)] = label
+            if (description == null || description.isBlank()) {
+                // No human readable name: the volume uuid is still better than a bare path.
+                val label = uuid ?: return@forEach
+                labels[volumeRoot(path)] = label
+                return@forEach
+            }
+            labels[volumeRoot(path)] = if (uuid == null || description.contains(uuid)) description else "$description ($uuid)"
         }
         return labels
     }
