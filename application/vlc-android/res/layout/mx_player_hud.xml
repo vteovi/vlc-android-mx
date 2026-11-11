@@ -65,17 +65,58 @@
     </LinearLayout>
 
     <LinearLayout
-            android:id="@+id/mx_side_bar"
+            android:id="@+id/mx_top_actions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginRight="12dp"
+            android:layout_gravity="start|top"
+            android:layout_marginTop="56dp"
+            android:layout_marginStart="12dp"
             android:alpha="0"
             android:background="@drawable/mx_panel_bg"
-            android:gravity="center_horizontal"
-            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:padding="6dp"
             android:visibility="gone">
+
+        <ImageView
+                android:id="@+id/mx_tracks"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/tracks"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_subtitles" />
+
+        <ImageView
+                android:id="@+id/mx_lock"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/lock"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_lock_player" />
+
+        <ImageView
+                android:id="@+id/mx_repeat"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_repeat"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_repeat" />
+
+        <ImageView
+                android:id="@+id/mx_shuffle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_shuffle"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_player_shuffle" />
 
         <ImageView
                 android:id="@+id/mx_ratio"
@@ -107,46 +148,6 @@
                 android:textColor="#FFFF8C00"
                 android:textSize="13sp"
                 android:textStyle="bold" />
-
-        <ImageView
-                android:id="@+id/mx_repeat"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/mx_repeat"
-                android:padding="9dp"
-                android:tint="#FFFFFFFF"
-                app:srcCompat="@drawable/ic_repeat" />
-
-        <ImageView
-                android:id="@+id/mx_shuffle"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/mx_shuffle"
-                android:padding="9dp"
-                android:tint="#FFFFFFFF"
-                app:srcCompat="@drawable/ic_player_shuffle" />
-
-        <ImageView
-                android:id="@+id/mx_tracks"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/tracks"
-                android:padding="9dp"
-                android:tint="#FFFFFFFF"
-                app:srcCompat="@drawable/ic_subtitles" />
-
-        <ImageView
-                android:id="@+id/mx_lock"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/lock"
-                android:padding="9dp"
-                android:tint="#FFFFFFFF"
-                app:srcCompat="@drawable/ic_lock_player" />
     </LinearLayout>
 
     <LinearLayout
