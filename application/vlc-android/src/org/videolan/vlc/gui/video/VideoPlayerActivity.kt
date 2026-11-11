@@ -684,9 +684,6 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
                     overlayDelegate.togglePlaylist()
                 } else if (isPlaybackSettingActive) {
                     delayDelegate.endPlaybackSetting()
-                } else if (isMxControlsEnabled() && mxGestureDelegate.isControlsVisible()) {
-                    // In MX mode the stock "isShowing" flag is never set, so collapse our own bars first.
-                    mxGestureDelegate.hideControls()
                 } else if (isShowing && service?.playlistManager?.videoStatsOn?.value == true) {
                     //hides video stats if they are displayed
                     service?.playlistManager?.videoStatsOn?.postValue(false)
