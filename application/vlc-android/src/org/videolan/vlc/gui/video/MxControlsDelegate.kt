@@ -16,6 +16,7 @@ package org.videolan.vlc.gui.video
 
 import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -74,8 +75,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val root: View = player.findViewById<ViewStubCompat>(R.id.mx_player_hud_stub).inflate()
 
     private val topBar: View = root.findViewById(R.id.mx_top_bar)
+    private val topActions: View = root.findViewById(R.id.mx_top_actions)
     private val bottomBar: View = root.findViewById(R.id.mx_bottom_bar)
-    private val sideBar: View = root.findViewById(R.id.mx_side_bar)
     private val titleView: TextView = root.findViewById(R.id.mx_title)
     private val timeView: TextView = root.findViewById(R.id.mx_time)
     private val lengthView: TextView = root.findViewById(R.id.mx_length)
@@ -90,7 +91,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val rewindLabel: TextView = root.findViewById(R.id.mx_rewind_label)
     private val forwardLabel: TextView = root.findViewById(R.id.mx_forward_label)
 
-    private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, bottomBar, sideBar) }
+    private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, topActions, bottomBar) }
     private var mxEnabled = true
     private var tracking = false
     private var lastCustomRatio = "9:16"
@@ -115,6 +116,28 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         refreshJumpLabels()
         bindButtons()
         root.postDelayed(ticker, 500L)
+        // The action row is anchored under the title bar; re-fit it when the layout
+        // (rotation, split screen, PiP) changes size.
+        root.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
+            if (bottom != oldBottom) layoutTopActions()
+        }
+    }
+
+    /**
+     * Anchors the quick action row right under the title bar. Every MX button lives in that one
+     * horizontal row now, so all this has to follow is the title bar height.
+     */
+    private fun layoutTopActions() {
+        if (root.height <= 0) return
+        val density = player.resources.displayMetrics.density
+        val gap = (4 * density).toInt()
+        val titleHeight = if (topBar.height > 0) topBar.height else (56 * density).toInt()
+        val params = topActions.layoutParams as FrameLayout.LayoutParams
+        val target = titleHeight + gap
+        if (params.topMargin != target) {
+            params.topMargin = target
+            topActions.layoutParams = params
+        }
     }
 
     /** The toolbar shows the media name, not the app label. */
@@ -370,6 +393,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             bar.animate().alpha(1f).setDuration(150L).start()
         }
         updateProgress()
+        // First show: the title bar was GONE, so its height is only known after this pass.
+        root.post { layoutTopActions() }
         val delay = Settings.videoHudDelay * 1000L
         if (delay > 0L) handler.postDelayed(hideRunnable, delay)
     }
@@ -517,21 +542,19 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         return "${parts[0].trim()}:${parts[1].trim()}"
     }
 
-    /** Long press on the rotate button: pin one orientation or go back to the sensor. */
+    /** Long press on the rotate button: pin portrait or landscape, or follow the device again. */
     private fun showOrientationMenu() {
         show()
+        // Portrait / landscape use the sensor flavours: whichever way the phone is held is the
+        // "right way up", so there is never an upside-down lock to escape from.
         val values = intArrayOf(
                 ORIENTATION_AUTO,
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
-                ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
-                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
-                ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE)
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
         val labels = arrayOf(
                 player.getString(R.string.mx_rotation_auto),
                 player.getString(R.string.mx_rotation_portrait),
-                player.getString(R.string.mx_rotation_reverse_portrait),
-                player.getString(R.string.mx_rotation_landscape),
-                player.getString(R.string.mx_rotation_reverse_landscape))
+                player.getString(R.string.mx_rotation_landscape))
         val checked = if (!player.orientationMode.locked) 0
         else values.indexOf(player.requestedOrientation).takeIf { it >= 0 } ?: 1
         AlertDialog.Builder(player)
@@ -556,20 +579,14 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         show()
     }
 
-    /** Rotate the activity by 90 degrees on every tap, like MX Player's rotate button. */
+    /** Rotate the activity between portrait and landscape, like MX Player's rotate button. */
     private fun rotateScreen() {
-        val next = when (player.orientationMode.orientation) {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
-            ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
-            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
+        val portrait = player.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        // Sensor flavours: the side the phone is held on decides which way "landscape" faces.
+        val next = if (portrait) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         player.setOrientation(next)
-        val label = when (next) {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT ->
-                player.getString(R.string.mx_rotation_portrait)
-            else -> player.getString(R.string.mx_rotation_landscape)
-        }
+        val label = player.getString(if (portrait) R.string.mx_rotation_landscape else R.string.mx_rotation_portrait)
         player.mxGestureDelegate.showHint(R.drawable.ic_player_rotate, label)
         show()
     }
