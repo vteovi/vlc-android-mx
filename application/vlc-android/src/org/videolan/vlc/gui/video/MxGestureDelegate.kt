@@ -15,9 +15,15 @@
 package org.videolan.vlc.gui.video
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.AudioManager
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
+import android.util.Log
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -34,6 +40,7 @@ import org.videolan.tools.MX_GESTURE_MODE
 import org.videolan.tools.MX_LOCK_GESTURE
 import org.videolan.tools.MX_LONG_PRESS_SPEED
 import org.videolan.tools.MX_PINCH_ZOOM
+import org.videolan.tools.MX_SEEK_PREVIEW
 import org.videolan.tools.MX_SWIPE_SEEK
 import org.videolan.tools.Settings
 import org.videolan.vlc.R
@@ -44,7 +51,7 @@ import kotlin.math.roundToInt
  * Replaces the stock [VideoTouchDelegate] when MX mode is on.
  *
  * Behaviour differences from stock VLC:
- *  - horizontal drag previews a target time in a centred panel and only seeks on release
+ *  - horizontal drag previews a target time plus a frame thumbnail, and only seeks on release
  *  - left half vertical drag = brightness, right half = volume (absolute from gesture start)
  *  - double tap on left / right third = jump, centre = play/pause
  *  - long press = temporary 2x speed, release restores the previous rate
@@ -66,6 +73,10 @@ class MxGestureDelegate(
         private const val LONG_PRESS_TIMEOUT = 500L
         private const val PANEL_HIDE_DELAY = 700L
         private const val LOCK_SWIPE_THRESHOLD = 120f
+        /** Do not re-decode the preview frame unless the target time moved by this much. */
+        private const val PREVIEW_STEP = 700L
+        private const val PREVIEW_MAX_WIDTH = 480
+        private const val TAG = "MxGestureDelegate"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -78,6 +89,7 @@ class MxGestureDelegate(
 
     private var enabled = true
     private var allowSwipeSeek = true
+    private var allowSeekPreview = true
     private var allowDoubleTap = true
     private var allowLongPressSpeed = true
     private var allowPinchZoom = true
@@ -109,6 +121,21 @@ class MxGestureDelegate(
     private val panelTitle: TextView = panel.findViewById(R.id.mx_gesture_title)
     private val panelSubtitle: TextView = panel.findViewById(R.id.mx_gesture_subtitle)
     private val panelProgress: ProgressBar = panel.findViewById(R.id.mx_gesture_progress)
+    private val previewImage: ImageView = panel.findViewById(R.id.mx_gesture_preview)
+
+    /**
+     * Seek preview frames are decoded with [MediaMetadataRetriever] on a private thread: the main
+     * player keeps running untouched, and a slow decoder can never stall the gesture.
+     */
+    private val previewThread = HandlerThread("mx-seek-preview")
+    private val previewHandler: Handler = Handler(previewThread.apply { start() }.looper)
+    private var previewRetriever: MediaMetadataRetriever? = null
+    private var previewRetrieverUri: String? = null
+    private var previewBusy = false
+    private var previewPendingTime = -1L
+    private var previewRequestedTime = -1L
+    private var previewGeneration = 0
+    private var previewFrame: Bitmap? = null
 
     private val hidePanelRunnable = Runnable { hidePanel() }
     private val singleTapRunnable = Runnable {
@@ -173,6 +200,7 @@ class MxGestureDelegate(
         val prefs = Settings.getInstance(player)
         enabled = prefs.getBoolean(MX_GESTURE_MODE, true)
         allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
+        allowSeekPreview = prefs.getBoolean(MX_SEEK_PREVIEW, true)
         allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
         allowLongPressSpeed = prefs.getBoolean(MX_LONG_PRESS_SPEED, true)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
@@ -231,6 +259,7 @@ class MxGestureDelegate(
         maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         startBrightness = currentBrightness()
+        resetPreview()
         if (tapCount == 1 && allowLongPressSpeed) handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT)
     }
 
@@ -277,7 +306,9 @@ class MxGestureDelegate(
         showPanel(if (delta >= 0L) R.drawable.ic_player_forward_10 else R.drawable.ic_player_rewind_10,
                 "${formatTime(targetTime)} / ${formatTime(length)}",
                 "$sign${formatTime(abs(delta) * 1000L)}",
-                if (length > 0L) ((targetTime * 100) / length).toInt() else 0, 100)
+                if (length > 0L) ((targetTime * 100) / length).toInt() else 0, 100,
+                previewMode = allowSeekPreview)
+        requestPreviewFrame(targetTime)
         controls.hide(true)
     }
 
@@ -336,6 +367,7 @@ class MxGestureDelegate(
         }
         gesture = GESTURE_NONE
         multiPointer = false
+        resetPreview()
     }
 
     private fun handleCancel() {
@@ -348,6 +380,7 @@ class MxGestureDelegate(
         multiPointer = false
         tapCount = 0
         hidePanel()
+        resetPreview()
         controls.show()
     }
 
@@ -408,7 +441,8 @@ class MxGestureDelegate(
         controls.show()
     }
 
-    private fun showPanel(iconRes: Int, title: String, subtitle: String, progress: Int, max: Int) {
+    private fun showPanel(iconRes: Int, title: String, subtitle: String, progress: Int, max: Int,
+                          previewMode: Boolean = false) {
         handler.removeCallbacks(hidePanelRunnable)
         panel.visibility = View.VISIBLE
         panel.alpha = 1f
@@ -417,6 +451,10 @@ class MxGestureDelegate(
         panelSubtitle.text = subtitle
         panelProgress.max = max
         panelProgress.progress = progress.coerceIn(0, max)
+        // The seek panel trades the big icon for the frame thumbnail once the first one arrives.
+        val showFrame = previewMode && previewFrame != null
+        panelIcon.visibility = if (showFrame) View.GONE else View.VISIBLE
+        previewImage.visibility = if (showFrame) View.VISIBLE else View.GONE
     }
 
     private fun hidePanel() {
@@ -428,6 +466,121 @@ class MxGestureDelegate(
         handler.postDelayed(hidePanelRunnable, PANEL_HIDE_DELAY)
     }
 
+    /** Drop any pending frame and hide the thumbnail; called when a gesture starts or ends. */
+    private fun resetPreview() {
+        previewGeneration++
+        previewPendingTime = -1L
+        previewRequestedTime = -1L
+        previewFrame = null
+        previewImage.setImageDrawable(null)
+        previewImage.visibility = View.GONE
+        panelIcon.visibility = View.VISIBLE
+    }
+
+    /**
+     * Asks for a frame at [timeMs]. Requests are coalesced: while one decode is running only the
+     * newest target is remembered, and small movements reuse the frame already on screen.
+     */
+    private fun requestPreviewFrame(timeMs: Long) {
+        if (!allowSeekPreview) return
+        if (previewRequestedTime >= 0L && abs(timeMs - previewRequestedTime) < PREVIEW_STEP) return
+        previewRequestedTime = timeMs
+        previewPendingTime = timeMs
+        if (!previewBusy) loadPreviewFrame()
+    }
+
+    private fun loadPreviewFrame() {
+        val requested = previewPendingTime
+        if (requested < 0L) return
+        previewPendingTime = -1L
+        previewBusy = true
+        val generation = previewGeneration
+        previewHandler.post {
+            val frame = decodePreviewFrame(requested)
+            handler.post {
+                previewBusy = false
+                // The gesture may have ended, or moved on to another media, meanwhile.
+                if (generation != previewGeneration) return@post
+                if (frame != null) {
+                    previewFrame = frame
+                    if (gesture == GESTURE_SEEK) {
+                        previewImage.setImageBitmap(frame)
+                        previewImage.visibility = View.VISIBLE
+                        panelIcon.visibility = View.GONE
+                    }
+                }
+                if (previewPendingTime >= 0L) loadPreviewFrame()
+            }
+        }
+    }
+
+    private fun decodePreviewFrame(timeMs: Long): Bitmap? {
+        val retriever = obtainRetriever() ?: return null
+        return try {
+            val frame = retriever.getFrameAtTime(timeMs * 1000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: return null
+            downscale(frame)
+        } catch (e: Throwable) {
+            Log.w(TAG, "seek preview frame at ${timeMs}ms failed", e)
+            null
+        }
+    }
+
+    private fun downscale(frame: Bitmap): Bitmap {
+        if (frame.width <= 0 || frame.width <= PREVIEW_MAX_WIDTH) return frame
+        val height = (frame.height * PREVIEW_MAX_WIDTH / frame.width).coerceAtLeast(1)
+        return try {
+            val scaled = Bitmap.createScaledBitmap(frame, PREVIEW_MAX_WIDTH, height, true)
+            if (scaled !== frame) frame.recycle()
+            scaled
+        } catch (e: Throwable) {
+            frame
+        }
+    }
+
+    /** One retriever per media, reused across gestures: opening the container is the slow part. */
+    private fun obtainRetriever(): MediaMetadataRetriever? {
+        val uri = currentMediaUri() ?: return null
+        val key = uri.toString()
+        previewRetriever?.let { if (previewRetrieverUri == key) return it }
+        releaseRetriever()
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(player, uri)
+            previewRetriever = retriever
+            previewRetrieverUri = key
+            retriever
+        } catch (e: Throwable) {
+            // Network streams and some containers allow no random access: keep the time-only panel.
+            Log.i(TAG, "seek preview unsupported for $key")
+            try {
+                retriever.release()
+            } catch (ignored: Throwable) {
+            }
+            null
+        }
+    }
+
+    private fun currentMediaUri(): Uri? {
+        val service = player.service ?: return null
+        return try {
+            service.playlistManager.getCurrentMedia()?.uri
+        } catch (e: Throwable) {
+            // Playlist manager not ready yet.
+            null
+        }
+    }
+
+    private fun releaseRetriever() {
+        val retriever = previewRetriever ?: return
+        previewRetriever = null
+        previewRetrieverUri = null
+        try {
+            retriever.release()
+        } catch (ignored: Throwable) {
+        }
+    }
+
     private fun cancelLongPress() = handler.removeCallbacks(longPressRunnable)
 
     private fun currentBrightness(): Float {
@@ -437,6 +590,9 @@ class MxGestureDelegate(
 
     fun release() {
         handler.removeCallbacksAndMessages(null)
+        previewGeneration++
+        previewHandler.post { releaseRetriever() }
+        previewThread.quitSafely()
         controls.release()
     }
 
