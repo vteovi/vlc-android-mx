@@ -19,13 +19,14 @@
             android:paddingRight="20dp"
             android:paddingBottom="18dp">
 
+        <!-- Size is rewritten at runtime to the frame's own aspect ratio (see applyPreviewRatio). -->
         <ImageView
                 android:id="@+id/mx_gesture_preview"
-                android:layout_width="match_parent"
+                android:layout_width="200dp"
                 android:layout_height="112dp"
                 android:background="#33000000"
                 android:contentDescription="@string/mx_seek_preview"
-                android:scaleType="centerCrop"
+                android:scaleType="fitCenter"
                 android:visibility="gone" />
 
         <ImageView

@@ -16,6 +16,7 @@ package org.videolan.vlc.gui.video
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -75,7 +76,15 @@ class MxGestureDelegate(
         private const val LOCK_SWIPE_THRESHOLD = 120f
         /** Do not re-decode the preview frame unless the target time moved by this much. */
         private const val PREVIEW_STEP = 700L
-        private const val PREVIEW_MAX_WIDTH = 480
+
+        /** Longest side of the decoded thumbnail, in pixels. */
+        private const val PREVIEW_MAX_SIDE = 640
+
+        /** Widest the thumbnail may be drawn, in dp (the panel's inner width). */
+        private const val PREVIEW_MAX_WIDTH_DP = 200
+
+        /** Tallest the thumbnail may be drawn, in dp — keeps a 9:16 clip from swallowing the panel. */
+        private const val PREVIEW_MAX_HEIGHT_DP = 180
         private const val TAG = "MxGestureDelegate"
     }
 
@@ -504,6 +513,7 @@ class MxGestureDelegate(
                 if (frame != null) {
                     previewFrame = frame
                     if (gesture == GESTURE_SEEK) {
+                        applyPreviewRatio(frame)
                         previewImage.setImageBitmap(frame)
                         previewImage.visibility = View.VISIBLE
                         panelIcon.visibility = View.GONE
@@ -522,7 +532,7 @@ class MxGestureDelegate(
         val scaled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             try {
                 retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        PREVIEW_MAX_WIDTH, -1)
+                        PREVIEW_MAX_SIDE, -1)
             } catch (e: Throwable) {
                 null
             }
@@ -533,18 +543,92 @@ class MxGestureDelegate(
             Log.w(TAG, "seek preview frame at ${timeMs}ms failed", e)
             null
         }
-        return frame?.let { downscale(it) }
+        val capped = frame?.let { downscale(it) } ?: return null
+        return rotateForDisplay(retriever, capped)
     }
 
-    private fun downscale(frame: Bitmap): Bitmap {
-        if (frame.width <= 0 || frame.width <= PREVIEW_MAX_WIDTH) return frame
-        val height = (frame.height * PREVIEW_MAX_WIDTH / frame.width).coerceAtLeast(1)
+    /**
+     * Portrait clips are often stored as landscape pixels plus a rotation matrix, and decoders
+     * disagree about applying it when grabbing a frame. Rotate only when the frame still looks the
+     * wrong way round compared with the metadata, so a clip is never rotated twice.
+     */
+    private fun rotateForDisplay(retriever: MediaMetadataRetriever, frame: Bitmap): Bitmap {
+        val rotation = try {
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                    ?.toIntOrNull() ?: 0
+        } catch (e: Throwable) {
+            0
+        }
+        if (rotation % 180 == 0 || frame.width <= 0 || frame.height <= 0) return frame
+        val metaWidth = try {
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+        } catch (e: Throwable) {
+            null
+        }
+        val metaHeight = try {
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+        } catch (e: Throwable) {
+            null
+        }
+        // The rotation swaps the axes, so the displayed orientation is the opposite of the stored one.
+        val expectedPortrait = if (metaWidth != null && metaHeight != null && metaWidth != metaHeight) {
+            metaHeight <= metaWidth
+        } else true
+        if (expectedPortrait == (frame.height > frame.width)) return frame
         return try {
-            val scaled = Bitmap.createScaledBitmap(frame, PREVIEW_MAX_WIDTH, height, true)
+            val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+            val rotated = Bitmap.createBitmap(frame, 0, 0, frame.width, frame.height, matrix, true)
+            if (rotated !== frame) frame.recycle()
+            rotated
+        } catch (e: Throwable) {
+            Log.w(TAG, "seek preview rotation failed", e)
+            frame
+        }
+    }
+
+    /**
+     * Caps the longest side, not just the width: a portrait clip is tall, so scaling by width alone
+     * would leave it several times bigger than a landscape one for the same thumbnail size.
+     */
+    private fun downscale(frame: Bitmap): Bitmap {
+        val longest = maxOf(frame.width, frame.height)
+        if (frame.width <= 0 || frame.height <= 0 || longest <= PREVIEW_MAX_SIDE) return frame
+        val scale = PREVIEW_MAX_SIDE.toFloat() / longest
+        val width = (frame.width * scale).toInt().coerceAtLeast(1)
+        val height = (frame.height * scale).toInt().coerceAtLeast(1)
+        return try {
+            val scaled = Bitmap.createScaledBitmap(frame, width, height, true)
             if (scaled !== frame) frame.recycle()
             scaled
         } catch (e: Throwable) {
             frame
+        }
+    }
+
+    /**
+     * Sizes the thumbnail to the frame's own aspect ratio instead of a fixed 16:9 box, so a 9:16
+     * (Douyin style) or ultra-wide clip is shown in full rather than cropped to its centre.
+     */
+    private fun applyPreviewRatio(frame: Bitmap) {
+        if (frame.width <= 0 || frame.height <= 0) return
+        val density = player.resources.displayMetrics.density
+        val maxWidth = (PREVIEW_MAX_WIDTH_DP * density).toInt()
+        // Do not let a tall clip push the panel past the screen on short landscape displays.
+        val availableHeight = (panel.height.takeIf { it > 0 } ?: screenHeight) * 0.45f
+        val maxHeight = minOf((PREVIEW_MAX_HEIGHT_DP * density).toInt(), availableHeight.toInt())
+                .coerceAtLeast((64 * density).toInt())
+        val ratio = frame.width.toFloat() / frame.height.toFloat()
+        var width = maxWidth
+        var height = (width / ratio).toInt().coerceAtLeast(1)
+        if (height > maxHeight) {
+            height = maxHeight
+            width = (height * ratio).toInt().coerceAtLeast(1)
+        }
+        val params = previewImage.layoutParams
+        if (params.width != width || params.height != height) {
+            params.width = width
+            params.height = height
+            previewImage.layoutParams = params
         }
     }
 
