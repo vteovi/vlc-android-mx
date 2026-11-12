@@ -497,10 +497,10 @@ class MxGestureDelegate(
         val generation = previewGeneration
         previewHandler.post {
             val frame = decodePreviewFrame(requested)
-            handler.post {
+            handler.post ui@{
                 previewBusy = false
                 // The gesture may have ended, or moved on to another media, meanwhile.
-                if (generation != previewGeneration) return@post
+                if (generation != previewGeneration) return@ui
                 if (frame != null) {
                     previewFrame = frame
                     if (gesture == GESTURE_SEEK) {
