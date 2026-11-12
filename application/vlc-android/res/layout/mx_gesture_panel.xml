@@ -8,6 +8,7 @@
         android:visibility="gone">
 
     <LinearLayout
+            android:id="@+id/mx_gesture_card"
             android:layout_width="240dp"
             android:layout_height="wrap_content"
             android:layout_gravity="center"

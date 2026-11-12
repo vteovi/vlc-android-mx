@@ -1427,8 +1427,11 @@
     <string name="mx_gesture_mode_summary">用顶部标题栏、侧边快捷按钮、底部进度条和 MX 风格手势替换原生播放器界面</string>
     <string name="mx_swipe_seek_title">滑动跳转并预览</string>
     <string name="mx_swipe_seek_summary">横向拖动可预览目标时间，松手后跳转</string>
-    <string name="mx_seek_preview_title">跳转时显示画面预览</string>
-    <string name="mx_seek_preview_summary">拖动时在时间上方显示目标位置的画面缩略图</string>
+    <string name="mx_seek_preview_title">滑动时的画面预览</string>
+    <string name="mx_seek_preview_summary">直接预览会暂停播放，让画面本身跟着手指跳动</string>
+    <string name="mx_seek_preview_screen">直接预览（画面跟着跳）</string>
+    <string name="mx_seek_preview_overlay">小窗缩略图</string>
+    <string name="mx_seek_preview_none">关闭（只显示时间）</string>
     <string name="mx_seek_preview">画面预览</string>
     <string name="mx_double_tap_title">双击操作</string>
     <string name="mx_double_tap_summary">双击左侧或右侧跳转，双击中间播放或暂停</string>
