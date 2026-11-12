@@ -2581,6 +2581,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             touchDelegate.touchControls = generateTouchFlags()
             // MX mode reads the stock fast play switch as well, keep its copy in sync.
             if (::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
+            Unit
         }
         SCREENSHOT_MODE -> {
             touchDelegate.touchControls = generateTouchFlags()
