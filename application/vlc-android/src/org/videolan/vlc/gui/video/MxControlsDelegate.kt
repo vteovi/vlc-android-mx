@@ -201,7 +201,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
             showSpeedMenu()
             true
         }
-        // Popup (PiP / floating window) and the stock options sheet are still reachable in MX mode.
+        // Popup sits in the quick action row, right next to the speed button, so it is one tap
+        // away from playback settings. The stock options sheet stays on the top bar.
         root.findViewById<View>(R.id.mx_popup).setOnClickListener { switchToPopup() }
         root.findViewById<View>(R.id.mx_more).setOnClickListener {
             hide(true)

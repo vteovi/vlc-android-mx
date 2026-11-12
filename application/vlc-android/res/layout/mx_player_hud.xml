@@ -44,16 +44,6 @@
                 android:textStyle="bold" />
 
         <ImageView
-                android:id="@+id/mx_popup"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/mx_popup"
-                android:padding="8dp"
-                android:tint="#FFFFFFFF"
-                app:srcCompat="@drawable/ic_popup_dim" />
-
-        <ImageView
                 android:id="@+id/mx_more"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
@@ -148,6 +138,16 @@
                 android:textColor="#FFFF8C00"
                 android:textSize="13sp"
                 android:textStyle="bold" />
+
+        <ImageView
+                android:id="@+id/mx_popup"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/mx_popup"
+                android:padding="9dp"
+                android:tint="#FFFFFFFF"
+                app:srcCompat="@drawable/ic_popup_dim" />
     </LinearLayout>
 
     <LinearLayout
