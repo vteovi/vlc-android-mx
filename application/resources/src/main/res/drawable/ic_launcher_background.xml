@@ -13,20 +13,20 @@
                 android:startX="54"
                 android:startY="0"
                 android:type="linear">
-                <!-- orange300 from top to orange500 54% stop -->
+                <!-- light blue from top to the main blue at 54% stop -->
                 <item
-                    android:color="@color/orange300"
+                    android:color="@color/mx_blue200"
                     android:offset="0.0" />
                 <item
-                    android:color="@color/orange500"
+                    android:color="@color/mx_blue500"
                     android:offset="0.54" />
-                <!-- orange700 to 72% stop -->
+                <!-- deeper blue to 72% stop -->
                 <item
-                    android:color="@color/orange700"
+                    android:color="@color/mx_blue700"
                     android:offset="0.72" />
-                <!-- orange900 to bottom -->
+                <!-- darkest blue to the bottom -->
                 <item
-                    android:color="@color/orange900"
+                    android:color="@color/mx_blue900"
                     android:offset="1.0" />
             </gradient>
 

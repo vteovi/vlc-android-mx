@@ -20,6 +20,13 @@
     <color name="orange800">#ff610a</color>
     <color name="orange900">#ff5014</color>
 
+    <!-- MX launcher icon: blue gradient instead of the stock orange one. -->
+    <color name="mx_blue200">#64B5F6</color>
+    <color name="mx_blue500">#2196F3</color>
+    <color name="mx_blue600">#1E88E5</color>
+    <color name="mx_blue700">#1565C0</color>
+    <color name="mx_blue900">#0D47A1</color>
+
     <color name="red500transparent_10">#1aff0000</color>
     <color name="red500transparent25">#40ff0000</color>
     <color name="red500transparent">#b4ff0000</color>
