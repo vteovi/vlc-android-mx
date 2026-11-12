@@ -516,14 +516,24 @@ class MxGestureDelegate(
 
     private fun decodePreviewFrame(timeMs: Long): Bitmap? {
         val retriever = obtainRetriever() ?: return null
-        return try {
-            val frame = retriever.getFrameAtTime(timeMs * 1000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    ?: return null
-            downscale(frame)
+        val timeUs = timeMs * 1000L
+        // Ask for an already downscaled frame where possible: a 4K keyframe is ~33 MB of pixels,
+        // which is far too much to allocate on repeat for a 200 dp thumbnail.
+        val scaled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            try {
+                retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        PREVIEW_MAX_WIDTH, -1)
+            } catch (e: Throwable) {
+                null
+            }
+        } else null
+        val frame = scaled ?: try {
+            retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         } catch (e: Throwable) {
             Log.w(TAG, "seek preview frame at ${timeMs}ms failed", e)
             null
         }
+        return frame?.let { downscale(it) }
     }
 
     private fun downscale(frame: Bitmap): Bitmap {
