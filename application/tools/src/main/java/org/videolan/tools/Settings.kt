@@ -243,7 +243,6 @@ const val MX_SEEK_PREVIEW = "mx_seek_preview"
 /** How the target frame is previewed while swiping: "screen" (main picture), "overlay" or "off". */
 const val MX_SEEK_PREVIEW_MODE = "mx_seek_preview_mode"
 const val MX_DOUBLE_TAP = "mx_double_tap"
-const val MX_LONG_PRESS_SPEED = "mx_long_press_speed"
 const val MX_PINCH_ZOOM = "mx_pinch_zoom"
 const val MX_LOCK_GESTURE = "mx_lock_gesture"
 const val MX_DOUBLE_TAP_JUMP = "mx_double_tap_jump"

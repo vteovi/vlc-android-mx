@@ -222,14 +222,6 @@
 
         <CheckBoxPreference
                 android:defaultValue="true"
-                android:key="mx_long_press_speed"
-                app:iconSpaceReserved="false"
-                app:singleLineTitle="false"
-                android:summary="@string/mx_long_press_speed_summary"
-                android:title="@string/mx_long_press_speed_title" />
-
-        <CheckBoxPreference
-                android:defaultValue="true"
                 android:key="mx_pinch_zoom"
                 app:iconSpaceReserved="false"
                 app:singleLineTitle="false"

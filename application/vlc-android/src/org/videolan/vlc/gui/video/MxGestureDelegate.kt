@@ -43,7 +43,6 @@ import org.videolan.tools.MX_DOUBLE_TAP
 import org.videolan.tools.MX_DOUBLE_TAP_JUMP
 import org.videolan.tools.MX_GESTURE_MODE
 import org.videolan.tools.MX_LOCK_GESTURE
-import org.videolan.tools.MX_LONG_PRESS_SPEED
 import org.videolan.tools.MX_PINCH_ZOOM
 import org.videolan.tools.MX_SEEK_PREVIEW
 import org.videolan.tools.MX_SEEK_PREVIEW_MODE
@@ -61,7 +60,6 @@ import kotlin.math.roundToInt
  *    centred panel, depending on the preview mode setting
  *  - left half vertical drag = brightness, right half = volume (absolute from gesture start)
  *  - double tap on left / right third = jump, centre = play/pause
- *  - long press = temporary 2x speed, release restores the previous rate
  *  - pinch = aspect ratio, swipe up from the bottom edge = lock/unlock
  */
 class MxGestureDelegate(
@@ -77,7 +75,8 @@ class MxGestureDelegate(
         private const val GESTURE_LOCK = 4
         private const val GESTURE_PINCH = 5
         private const val TAP_TIMEOUT = 300L
-        private const val LONG_PRESS_TIMEOUT = 500L
+        /** A press longer than this is not a tap, so releasing it must not toggle the controls. */
+        private const val TAP_MAX_DURATION = 400L
         private const val PANEL_HIDE_DELAY = 700L
         private const val LOCK_SWIPE_THRESHOLD = 120f
         /** Do not re-decode the preview frame unless the target time moved by this much. */
@@ -117,7 +116,6 @@ class MxGestureDelegate(
     private var allowSwipeSeek = true
     private var seekPreviewMode = SEEK_PREVIEW_SCREEN
     private var allowDoubleTap = true
-    private var allowLongPressSpeed = true
     private var allowPinchZoom = true
     private var allowLockGesture = true
     private var jumpSeconds = 60
@@ -134,11 +132,10 @@ class MxGestureDelegate(
     private var moved = false
     private var multiPointer = false
     private var tapCount = 0
+    private var downStamp = 0L
     private var lastTapTime = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
-    private var fastPlayActive = false
-    private var savedRate = 1f
     private var lockedStartY = 0f
     private var accumulatedScale = 1f
     private var screenSeekActive = false
@@ -171,15 +168,6 @@ class MxGestureDelegate(
     private val hidePanelRunnable = Runnable { hidePanel() }
     private val singleTapRunnable = Runnable {
         if (tapCount == 1) controls.toggle()
-    }
-    private val longPressRunnable = Runnable {
-        if (moved || multiPointer || gesture != GESTURE_NONE || player.isLocked || !allowLongPressSpeed) return@Runnable
-        val service = player.service ?: return@Runnable
-        savedRate = service.rate
-        service.setRate(2f, false)
-        fastPlayActive = true
-        showPanel(R.drawable.ic_speed, player.getString(R.string.mx_fast_play), "2.0x", 100, 100)
-        controls.hide(true)
     }
 
     private val scaleDetector by lazy(LazyThreadSafetyMode.NONE) {
@@ -233,7 +221,6 @@ class MxGestureDelegate(
         allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
         seekPreviewMode = readSeekPreviewMode(prefs)
         allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
-        allowLongPressSpeed = prefs.getBoolean(MX_LONG_PRESS_SPEED, true)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
         allowLockGesture = prefs.getBoolean(MX_LOCK_GESTURE, true)
         jumpSeconds = prefs.getString(MX_DOUBLE_TAP_JUMP, "60")?.toIntOrNull() ?: 60
@@ -267,7 +254,6 @@ class MxGestureDelegate(
             MotionEvent.ACTION_DOWN -> handleDown(event)
             MotionEvent.ACTION_POINTER_DOWN -> {
                 multiPointer = true
-                cancelLongPress()
                 handler.removeCallbacks(singleTapRunnable)
                 tapCount = 0
                 gesture = GESTURE_PINCH
@@ -282,6 +268,7 @@ class MxGestureDelegate(
 
     private fun handleDown(event: MotionEvent) {
         val now = System.currentTimeMillis()
+        downStamp = SystemClock.elapsedRealtime()
         tapCount = if (now - lastTapTime < TAP_TIMEOUT &&
                 abs(event.x - lastTapX) < touchSlop && abs(event.y - lastTapY) < touchSlop) {
             tapCount + 1
@@ -302,7 +289,6 @@ class MxGestureDelegate(
         screenSeekActive = false
         screenSeekWasPlaying = false
         resetPreview()
-        if (tapCount == 1 && allowLongPressSpeed) handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT)
     }
 
     private fun handleMove(event: MotionEvent) {
@@ -310,7 +296,6 @@ class MxGestureDelegate(
         val dy = event.y - startY
         if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
             moved = true
-            cancelLongPress()
             handler.removeCallbacks(singleTapRunnable)
             tapCount = 0
         }
@@ -424,11 +409,6 @@ class MxGestureDelegate(
     }
 
     private fun handleUp(event: MotionEvent) {
-        cancelLongPress()
-        if (fastPlayActive) {
-            player.service?.setRate(savedRate, false)
-            fastPlayActive = false
-        }
         when (gesture) {
             GESTURE_SEEK -> {
                 if (allowSwipeSeek && length > 0L && player.service?.isSeekable == true) {
@@ -440,7 +420,7 @@ class MxGestureDelegate(
             GESTURE_BRIGHTNESS, GESTURE_VOLUME, GESTURE_PINCH -> controls.show()
         }
         hidePanelDelayed()
-        if (!moved && !multiPointer && !fastPlayActive) {
+        if (!moved && !multiPointer && SystemClock.elapsedRealtime() - downStamp <= TAP_MAX_DURATION) {
             lastTapTime = System.currentTimeMillis()
             lastTapX = event.x
             lastTapY = event.y
@@ -461,11 +441,6 @@ class MxGestureDelegate(
     }
 
     private fun handleCancel() {
-        cancelLongPress()
-        if (fastPlayActive) {
-            player.service?.setRate(savedRate, false)
-            fastPlayActive = false
-        }
         abortScreenSeek()
         gesture = GESTURE_NONE
         multiPointer = false
@@ -771,8 +746,6 @@ class MxGestureDelegate(
         } catch (ignored: Throwable) {
         }
     }
-
-    private fun cancelLongPress() = handler.removeCallbacks(longPressRunnable)
 
     private fun currentBrightness(): Float {
         val value = player.window.attributes.screenBrightness

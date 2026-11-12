@@ -1434,8 +1434,6 @@
     <string name="mx_seek_preview">畫面預覽</string>
     <string name="mx_double_tap_title">雙擊操作</string>
     <string name="mx_double_tap_summary">雙擊左側或右側跳轉，雙擊中間播放或暫停</string>
-    <string name="mx_long_press_speed_title">長按 2 倍速播放</string>
-    <string name="mx_long_press_speed_summary">按住畫面以兩倍速播放，放開後恢復</string>
     <string name="mx_pinch_zoom_title">雙指縮放畫面</string>
     <string name="mx_pinch_zoom_summary">雙指張開或合攏切換畫面比例</string>
     <string name="mx_lock_gesture_title">上滑鎖定螢幕</string>
@@ -1446,7 +1444,6 @@
     <string name="mx_zoom">畫面大小</string>
     <string name="mx_zoom_fill">填滿畫面</string>
     <string name="mx_zoom_fit">最佳符合</string>
-    <string name="mx_fast_play">2 倍速</string>
     <string name="mx_locked">螢幕已鎖定</string>
     <string name="mx_unlocked">螢幕已解鎖</string>
     <string name="mx_swipe_up_unlock">上滑解鎖</string>
