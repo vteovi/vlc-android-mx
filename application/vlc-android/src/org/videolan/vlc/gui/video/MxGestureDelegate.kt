@@ -39,8 +39,8 @@ import android.widget.TextView
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.tools.ENABLE_FASTPLAY
 import org.videolan.tools.MX_DOUBLE_TAP
-import org.videolan.tools.MX_DOUBLE_TAP_JUMP
 import org.videolan.tools.MX_GESTURE_MODE
 import org.videolan.tools.MX_LOCK_GESTURE
 import org.videolan.tools.MX_PINCH_ZOOM
@@ -59,7 +59,10 @@ import kotlin.math.roundToInt
  *  - horizontal drag seeks the main picture live (pause + seek) or previews a thumbnail in a small
  *    centred panel, depending on the preview mode setting
  *  - left half vertical drag = brightness, right half = volume (absolute from gesture start)
- *  - double tap on left / right third = jump, centre = play/pause
+ *  - double tap on the outer quarters = stock jump, centre = play/pause (it reads the stock jump
+ *    delay settings, so it always matches the native player)
+ *  - long press = the player's own fast play (switch and speed live in the stock control
+ *    settings), release restores the previous rate
  *  - pinch = aspect ratio, swipe up from the bottom edge = lock/unlock
  */
 class MxGestureDelegate(
@@ -77,6 +80,8 @@ class MxGestureDelegate(
         private const val TAP_TIMEOUT = 300L
         /** A press longer than this is not a tap, so releasing it must not toggle the controls. */
         private const val TAP_MAX_DURATION = 400L
+        /** How long the finger has to rest before the stock fast play kicks in. */
+        private const val FAST_PLAY_DELAY = 500L
         private const val PANEL_HIDE_DELAY = 700L
         private const val LOCK_SWIPE_THRESHOLD = 120f
         /** Do not re-decode the preview frame unless the target time moved by this much. */
@@ -116,9 +121,9 @@ class MxGestureDelegate(
     private var allowSwipeSeek = true
     private var seekPreviewMode = SEEK_PREVIEW_SCREEN
     private var allowDoubleTap = true
+    private var allowFastPlay = false
     private var allowPinchZoom = true
     private var allowLockGesture = true
-    private var jumpSeconds = 60
 
     private var startX = 0f
     private var startY = 0f
@@ -133,6 +138,8 @@ class MxGestureDelegate(
     private var multiPointer = false
     private var tapCount = 0
     private var downStamp = 0L
+    private var fastPlayActive = false
+    private var savedRate = 1f
     private var lastTapTime = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
@@ -169,6 +176,20 @@ class MxGestureDelegate(
     private val singleTapRunnable = Runnable {
         if (tapCount == 1) controls.toggle()
     }
+    /**
+     * Long press hands over to the player's own fast play instead of a private 2x mode, so the
+     * stock "long press for fast play" switch and its speed setting keep working in MX mode.
+     */
+    private val fastPlayRunnable = Runnable {
+        if (moved || multiPointer || gesture != GESTURE_NONE || player.isLocked ||
+                !allowFastPlay || fastPlayActive) return@Runnable
+        val service = player.service ?: return@Runnable
+        savedRate = service.rate
+        service.setRate(Settings.fastplaySpeed, false)
+        fastPlayActive = true
+        player.touchDelegate.showFastPlay()
+        controls.hide(true)
+    }
 
     private val scaleDetector by lazy(LazyThreadSafetyMode.NONE) {
         ScaleGestureDetector(player, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -202,9 +223,6 @@ class MxGestureDelegate(
 
     fun isEnabled() = enabled
 
-    /** Jump interval used by double tap and the bottom bar buttons, in seconds. */
-    val jumpInterval: Int get() = jumpSeconds
-
     fun isControlsVisible() = enabled && controls.isVisible()
 
     fun hideControls() = controls.hide()
@@ -221,10 +239,9 @@ class MxGestureDelegate(
         allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
         seekPreviewMode = readSeekPreviewMode(prefs)
         allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
+        allowFastPlay = prefs.getBoolean(ENABLE_FASTPLAY, false)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
         allowLockGesture = prefs.getBoolean(MX_LOCK_GESTURE, true)
-        jumpSeconds = prefs.getString(MX_DOUBLE_TAP_JUMP, "60")?.toIntOrNull() ?: 60
-        controls.setJumpInterval(jumpSeconds)
         controls.setMxEnabled(enabled)
         if (enabled) controls.show() else {
             hidePanel()
@@ -254,6 +271,7 @@ class MxGestureDelegate(
             MotionEvent.ACTION_DOWN -> handleDown(event)
             MotionEvent.ACTION_POINTER_DOWN -> {
                 multiPointer = true
+                cancelFastPlay()
                 handler.removeCallbacks(singleTapRunnable)
                 tapCount = 0
                 gesture = GESTURE_PINCH
@@ -289,6 +307,7 @@ class MxGestureDelegate(
         screenSeekActive = false
         screenSeekWasPlaying = false
         resetPreview()
+        if (tapCount == 1 && allowFastPlay) handler.postDelayed(fastPlayRunnable, FAST_PLAY_DELAY)
     }
 
     private fun handleMove(event: MotionEvent) {
@@ -296,6 +315,7 @@ class MxGestureDelegate(
         val dy = event.y - startY
         if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
             moved = true
+            cancelFastPlay()
             handler.removeCallbacks(singleTapRunnable)
             tapCount = 0
         }
@@ -409,6 +429,12 @@ class MxGestureDelegate(
     }
 
     private fun handleUp(event: MotionEvent) {
+        cancelFastPlay()
+        if (fastPlayActive) {
+            player.service?.setRate(savedRate, false)
+            fastPlayActive = false
+            player.touchDelegate.hideFastPlay()
+        }
         when (gesture) {
             GESTURE_SEEK -> {
                 if (allowSwipeSeek && length > 0L && player.service?.isSeekable == true) {
@@ -441,6 +467,12 @@ class MxGestureDelegate(
     }
 
     private fun handleCancel() {
+        cancelFastPlay()
+        if (fastPlayActive) {
+            player.service?.setRate(savedRate, false)
+            fastPlayActive = false
+            player.touchDelegate.hideFastPlay()
+        }
         abortScreenSeek()
         gesture = GESTURE_NONE
         multiPointer = false
@@ -478,12 +510,16 @@ class MxGestureDelegate(
         hidePanelDelayed()
     }
 
+    /**
+     * Same zones as the stock touch delegate: the outer quarters jump, the middle toggles playback.
+     * The step comes from the stock "double tap jump" delay, so both layers always agree.
+     */
     private fun performDoubleTap(x: Float) {
         if (!allowDoubleTap) return
-        val third = screenWidth / 3f
+        val delay = Settings.videoDoubleTapJumpDelay
         when {
-            x < third -> jump(-jumpSeconds)
-            x > third * 2f -> jump(jumpSeconds)
+            x < screenWidth / 4f -> jump(-delay)
+            x > screenWidth * 0.75f -> jump(delay)
             else -> togglePlayPause()
         }
     }
@@ -746,6 +782,8 @@ class MxGestureDelegate(
         } catch (ignored: Throwable) {
         }
     }
+
+    private fun cancelFastPlay() = handler.removeCallbacks(fastPlayRunnable)
 
     private fun currentBrightness(): Float {
         val value = player.window.attributes.screenBrightness

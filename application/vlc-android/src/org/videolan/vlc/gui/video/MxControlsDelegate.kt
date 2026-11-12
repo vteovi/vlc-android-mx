@@ -32,9 +32,9 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
 import org.videolan.libvlc.MediaPlayer
-import org.videolan.tools.MX_DOUBLE_TAP_JUMP
 import org.videolan.tools.Settings
 import org.videolan.vlc.R
+import org.videolan.vlc.gui.dialogs.JumpToTimeDialog
 import kotlin.math.abs
 
 /**
@@ -95,7 +95,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private var mxEnabled = true
     private var tracking = false
     private var lastCustomRatio = "9:16"
-    private var jumpSeconds = 60
+    /** Step used by the rewind / forward buttons, kept in sync with the stock jump delay. */
+    private var jumpDelay = 10
     private var repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE
     private var shuffling = false
     private var ratioIndex = 0
@@ -112,7 +113,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     init {
         seekBar.max = 1000
         titleView.text = mediaTitle()
-        jumpSeconds = Settings.getInstance(player).getString(MX_DOUBLE_TAP_JUMP, "60")?.toIntOrNull() ?: 60
+        jumpDelay = Settings.videoJumpDelay
         refreshJumpLabels()
         bindButtons()
         root.postDelayed(ticker, 500L)
@@ -149,8 +150,26 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         root.findViewById<View>(R.id.mx_play).setOnClickListener { togglePlayPause() }
         prevButton.setOnClickListener { playPrevious() }
         nextButton.setOnClickListener { playNext() }
-        root.findViewById<View>(R.id.mx_rewind).setOnClickListener { seekBy(-jumpSeconds) }
-        root.findViewById<View>(R.id.mx_forward).setOnClickListener { seekBy(jumpSeconds) }
+        // Same behaviour as the stock HUD buttons: tap = video jump delay, long press = long jump delay.
+        root.findViewById<View>(R.id.mx_rewind).apply {
+            setOnClickListener { seekBy(-jumpDelay) }
+            setOnLongClickListener {
+                seekBy(-Settings.videoLongJumpDelay)
+                true
+            }
+        }
+        root.findViewById<View>(R.id.mx_forward).apply {
+            setOnClickListener { seekBy(jumpDelay) }
+            setOnLongClickListener {
+                seekBy(Settings.videoLongJumpDelay)
+                true
+            }
+        }
+        // "Go to time": the stock dialog behind the player options menu, promoted to a button.
+        root.findViewById<View>(R.id.mx_jumpto).setOnClickListener {
+            hide()
+            showJumpToTime()
+        }
         // Single tap cycles the presets (same idea as the stock VLC ratio toggle),
         // long press opens the full list including the custom ratio entry.
         root.findViewById<View>(R.id.mx_ratio).apply {
@@ -341,13 +360,19 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         show()
     }
 
-    private fun seekBy(seconds: Int) {        val service = player.service ?: return
+    private fun seekBy(seconds: Int) {
+        val service = player.service ?: return
         val length = service.length
         if (length <= 0L) return
         val target = (player.time + seconds * 1000L).coerceIn(0L, length)
         player.seek(target, true)
         updateProgress()
         show()
+    }
+
+    /** Stock "go to time" dialog, the one the player options sheet exposes. */
+    private fun showJumpToTime() {
+        JumpToTimeDialog.newInstance().show(player.supportFragmentManager, "mx_time")
     }
 
     private fun updateProgress() {
@@ -364,6 +389,11 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         if (service.isShuffling != shuffling) {
             shuffling = service.isShuffling
             updateShuffleIcon(shuffling)
+        }
+        // The stock jump delay can be changed in the settings while this screen is alive.
+        if (jumpDelay != Settings.videoJumpDelay) {
+            jumpDelay = Settings.videoJumpDelay
+            refreshJumpLabels()
         }
         val length = service.length
         val position = player.time
@@ -424,16 +454,10 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         if (!enabled) hide(true)
     }
 
-    /** Keeps the bottom bar labels in sync with the double tap jump interval. */
-    fun setJumpInterval(seconds: Int) {
-        if (seconds <= 0 || seconds == jumpSeconds) return
-        jumpSeconds = seconds
-        refreshJumpLabels()
-    }
-
+    /** Keeps the bottom bar labels in sync with the stock jump delay. */
     private fun refreshJumpLabels() {
-        rewindLabel.text = jumpSeconds.toString()
-        forwardLabel.text = jumpSeconds.toString()
+        rewindLabel.text = jumpDelay.toString()
+        forwardLabel.text = jumpDelay.toString()
     }
 
     fun release() {

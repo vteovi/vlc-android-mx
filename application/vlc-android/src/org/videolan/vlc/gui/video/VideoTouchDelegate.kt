@@ -245,7 +245,7 @@ class VideoTouchDelegate(private val player: VideoPlayerActivity,
                         if (touchAction == TOUCH_FASTPLAY) {
                             player.overlayDelegate.hideOverlay(false)
                             player.service?.setRate(savedRate, false)
-                            hideFastplay()
+                            hideFastPlay()
                             touchAction = TOUCH_NONE
                             return true
                         }
@@ -562,7 +562,7 @@ class VideoTouchDelegate(private val player: VideoPlayerActivity,
     /**
      * Show the fast play overlay
      */
-    private fun showFastPlay() {
+    fun showFastPlay() {
         initSeekOverlay()
         val container:LinearLayout = player.findViewById(R.id.fastPlayContainer)
         val title: TextView = player.findViewById(R.id.fastPlayTitle)
@@ -586,7 +586,7 @@ class VideoTouchDelegate(private val player: VideoPlayerActivity,
     /**
      * Hide the fast play overlay
      */
-    private fun hideFastplay() {
+    fun hideFastPlay() {
         val container:LinearLayout = player.findViewById(R.id.fastPlayContainer)
         container.animate().alpha(0F).withEndAction {
             container.setGone()

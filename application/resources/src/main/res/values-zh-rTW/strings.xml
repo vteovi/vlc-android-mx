@@ -1438,7 +1438,6 @@
     <string name="mx_pinch_zoom_summary">雙指張開或合攏切換畫面比例</string>
     <string name="mx_lock_gesture_title">上滑鎖定螢幕</string>
     <string name="mx_lock_gesture_summary">從畫面下緣上滑鎖定，再次上滑解鎖</string>
-    <string name="mx_double_tap_jump_title">雙擊跳轉秒數</string>
     <string name="mx_brightness">亮度</string>
     <string name="mx_volume">音量</string>
     <string name="mx_zoom">畫面大小</string>

@@ -2577,7 +2577,12 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
      */
     fun onChangedControlSetting(key: String) = when(key) {
         KEY_AUDIO_BOOST -> isAudioBoostEnabled = settings.getBoolean(KEY_AUDIO_BOOST, true)
-        ENABLE_VOLUME_GESTURE, ENABLE_BRIGHTNESS_GESTURE, ENABLE_DOUBLE_TAP_SEEK, ENABLE_DOUBLE_TAP_PLAY, ENABLE_SWIPE_SEEK, ENABLE_SCALE_GESTURE, ENABLE_FASTPLAY -> touchDelegate.touchControls = generateTouchFlags()
+        ENABLE_VOLUME_GESTURE, ENABLE_BRIGHTNESS_GESTURE, ENABLE_DOUBLE_TAP_SEEK, ENABLE_DOUBLE_TAP_PLAY, ENABLE_SWIPE_SEEK, ENABLE_SCALE_GESTURE, ENABLE_FASTPLAY -> {
+            touchDelegate.touchControls = generateTouchFlags()
+            // MX mode reads the stock fast play switch as well, keep its copy in sync.
+            if (::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
+            Unit
+        }
         SCREENSHOT_MODE -> {
             touchDelegate.touchControls = generateTouchFlags()
             overlayDelegate.updateScreenshotButton()

@@ -1475,7 +1475,6 @@
     <string name="mx_pinch_zoom_summary">Pinch in or out to switch the picture aspect ratio</string>
     <string name="mx_lock_gesture_title">Swipe up to lock</string>
     <string name="mx_lock_gesture_summary">Swipe up from the bottom edge to lock the screen, swipe up again to unlock</string>
-    <string name="mx_double_tap_jump_title">Double tap jump interval</string>
     <string name="mx_brightness">Brightness</string>
     <string name="mx_volume">Volume</string>
     <string name="mx_zoom">Picture size</string>
@@ -1491,7 +1490,7 @@
     <string name="mx_rewind">Rewind</string>
     <string name="mx_forward">Forward</string>
     <string name="mx_play_pause">Play or pause</string>
-    <string name="mx_jump_60" translatable="false">60</string>
+    <string name="mx_jump_default" translatable="false">10</string>
     <string name="mx_popup">Popup player</string>
     <string name="mx_more_options">More options</string>
     <string name="mx_repeat">Repeat mode</string>
