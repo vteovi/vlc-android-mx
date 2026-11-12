@@ -847,8 +847,15 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         outState.putBoolean(KEY_LIST, overlayDelegate.hasPlaylist)
     }
 
+    /**
+     * Switches playback to a floating window.
+     *
+     * @param forceLegacyPopup ask for the custom popup even when the system PiP is available.
+     * The custom popup is the resizable one the player can pinch; the MX popup button asks for
+     * it explicitly, while the stock menu keeps following the user preference.
+     */
     @TargetApi(Build.VERSION_CODES.O)
-    fun switchToPopup() {
+    fun switchToPopup(forceLegacyPopup: Boolean = false) {
         if (isBenchmark) return
         optionsDelegate?.hide()
         //look for dialogs and close them
@@ -856,7 +863,10 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         val mw = service?.currentMediaWrapper
         if (mw == null || !AndroidDevices.pipAllowed || !isStarted()) return
 
-        val forceLegacy = Settings.getInstance(this).getBoolean(POPUP_FORCE_LEGACY, false)
+        // Without the overlay permission the custom popup cannot be drawn at all, in that case
+        // fall back to the system PiP instead of showing a permission dialog from the button.
+        val forceLegacy = Settings.getInstance(this).getBoolean(POPUP_FORCE_LEGACY, false) ||
+                (forceLegacyPopup && Permissions.canDrawOverlays(this))
         if (AndroidDevices.hasPiP && !forceLegacy) {
             Permissions.checkPiPPermission(this)
             if (AndroidUtil.isOOrLater)

@@ -14,6 +14,7 @@
  */
 package org.videolan.vlc.gui.video
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -331,9 +332,18 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         shuffleView.contentDescription = player.getString(R.string.mx_shuffle)
     }
 
+    /**
+     * Same as the stock "Play as popup" entry: playback moves to the resizable floating window
+     * and the launcher comes back to the foreground. Without the last step the overlay is drawn
+     * on top of our own activity, which looks like an in-app mini player instead of a popup.
+     */
     private fun switchToPopup() {
         hide(true)
-        player.switchToPopup()
+        player.switchToPopup(forceLegacyPopup = true)
+        val startMain = Intent(Intent.ACTION_MAIN)
+        startMain.addCategory(Intent.CATEGORY_HOME)
+        startMain.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        player.startActivity(startMain)
     }
 
     /** Previous item of the playlist, with a hint when there is none. */
