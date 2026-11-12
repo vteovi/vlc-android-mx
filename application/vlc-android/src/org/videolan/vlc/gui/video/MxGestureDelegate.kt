@@ -15,6 +15,7 @@
 package org.videolan.vlc.gui.video
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.media.AudioManager
@@ -24,11 +25,14 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -42,6 +46,7 @@ import org.videolan.tools.MX_LOCK_GESTURE
 import org.videolan.tools.MX_LONG_PRESS_SPEED
 import org.videolan.tools.MX_PINCH_ZOOM
 import org.videolan.tools.MX_SEEK_PREVIEW
+import org.videolan.tools.MX_SEEK_PREVIEW_MODE
 import org.videolan.tools.MX_SWIPE_SEEK
 import org.videolan.tools.Settings
 import org.videolan.vlc.R
@@ -52,7 +57,8 @@ import kotlin.math.roundToInt
  * Replaces the stock [VideoTouchDelegate] when MX mode is on.
  *
  * Behaviour differences from stock VLC:
- *  - horizontal drag previews a target time plus a frame thumbnail, and only seeks on release
+ *  - horizontal drag seeks the main picture live (pause + seek) or previews a thumbnail in a small
+ *    centred panel, depending on the preview mode setting
  *  - left half vertical drag = brightness, right half = volume (absolute from gesture start)
  *  - double tap on left / right third = jump, centre = play/pause
  *  - long press = temporary 2x speed, release restores the previous rate
@@ -77,6 +83,17 @@ class MxGestureDelegate(
         /** Do not re-decode the preview frame unless the target time moved by this much. */
         private const val PREVIEW_STEP = 700L
 
+        /** Direct preview: the main picture itself jumps while dragging (pause + seek). */
+        private const val SEEK_PREVIEW_SCREEN = "screen"
+        /** Overlay preview: the picture stays put, a decoded thumbnail pops up in the centre. */
+        private const val SEEK_PREVIEW_OVERLAY = "overlay"
+        /** Time readout only, no frame preview. */
+        private const val SEEK_PREVIEW_OFF = "off"
+        /** Minimum gap between two live seeks, so a slow decoder is never flooded. */
+        private const val SCREEN_SEEK_INTERVAL = 180L
+        /** Tiny movements are not worth a seek; the exact position is applied on release anyway. */
+        private const val SCREEN_SEEK_STEP = 400L
+
         /** Longest side of the decoded thumbnail, in pixels. */
         private const val PREVIEW_MAX_SIDE = 640
 
@@ -98,7 +115,7 @@ class MxGestureDelegate(
 
     private var enabled = true
     private var allowSwipeSeek = true
-    private var allowSeekPreview = true
+    private var seekPreviewMode = SEEK_PREVIEW_SCREEN
     private var allowDoubleTap = true
     private var allowLongPressSpeed = true
     private var allowPinchZoom = true
@@ -124,8 +141,13 @@ class MxGestureDelegate(
     private var savedRate = 1f
     private var lockedStartY = 0f
     private var accumulatedScale = 1f
+    private var screenSeekActive = false
+    private var screenSeekWasPlaying = false
+    private var screenSeekLastTime = -1L
+    private var screenSeekLastStamp = 0L
 
     private val panel: View = player.findViewById<ViewStubCompat>(R.id.mx_gesture_panel_stub).inflate()
+    private val panelCard: View = panel.findViewById(R.id.mx_gesture_card)
     private val panelIcon: ImageView = panel.findViewById(R.id.mx_gesture_icon)
     private val panelTitle: TextView = panel.findViewById(R.id.mx_gesture_title)
     private val panelSubtitle: TextView = panel.findViewById(R.id.mx_gesture_subtitle)
@@ -209,7 +231,7 @@ class MxGestureDelegate(
         val prefs = Settings.getInstance(player)
         enabled = prefs.getBoolean(MX_GESTURE_MODE, true)
         allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
-        allowSeekPreview = prefs.getBoolean(MX_SEEK_PREVIEW, true)
+        seekPreviewMode = readSeekPreviewMode(prefs)
         allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
         allowLongPressSpeed = prefs.getBoolean(MX_LONG_PRESS_SPEED, true)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
@@ -221,6 +243,15 @@ class MxGestureDelegate(
             hidePanel()
             player.isLocked = false
         }
+    }
+
+    /**
+     * Older builds only had an on/off switch, so a switch that was turned off maps to "off" and
+     * everybody else gets the new direct-preview default.
+     */
+    private fun readSeekPreviewMode(prefs: SharedPreferences): String {
+        prefs.getString(MX_SEEK_PREVIEW_MODE, null)?.let { return it }
+        return if (prefs.getBoolean(MX_SEEK_PREVIEW, true)) SEEK_PREVIEW_SCREEN else SEEK_PREVIEW_OFF
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
@@ -268,6 +299,8 @@ class MxGestureDelegate(
         maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         startBrightness = currentBrightness()
+        screenSeekActive = false
+        screenSeekWasPlaying = false
         resetPreview()
         if (tapCount == 1 && allowLongPressSpeed) handler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT)
     }
@@ -308,17 +341,65 @@ class MxGestureDelegate(
             showPanel(R.drawable.ic_player_forward_10, player.getString(R.string.mx_unseekable), "", 0, 100)
             return
         }
+        beginScreenSeek()
         val ratio = dx / screenWidth.toFloat()
         targetTime = (startTimePos + (ratio * length).toLong()).coerceIn(0L, length)
         val delta = (targetTime - startTimePos) / 1000L
         val sign = if (delta >= 0L) "+" else "-"
+        val overlay = seekPreviewMode == SEEK_PREVIEW_OVERLAY
         showPanel(if (delta >= 0L) R.drawable.ic_player_forward_10 else R.drawable.ic_player_rewind_10,
                 "${formatTime(targetTime)} / ${formatTime(length)}",
                 "$sign${formatTime(abs(delta) * 1000L)}",
                 if (length > 0L) ((targetTime * 100) / length).toInt() else 0, 100,
-                previewMode = allowSeekPreview)
-        requestPreviewFrame(targetTime)
+                previewMode = overlay, docked = seekPreviewMode == SEEK_PREVIEW_SCREEN)
+        if (overlay) requestPreviewFrame(targetTime) else applyScreenSeek()
         controls.hide(true)
+    }
+
+    /**
+     * Direct preview: pause the main player and seek it, so the picture on screen itself follows the
+     * finger instead of being duplicated in a thumbnail. The playback state is restored on release.
+     */
+    private fun beginScreenSeek() {
+        if (seekPreviewMode != SEEK_PREVIEW_SCREEN || screenSeekActive) return
+        val service = player.service ?: return
+        if (length <= 0L || !service.isSeekable) return
+        screenSeekActive = true
+        screenSeekLastTime = -1L
+        screenSeekLastStamp = 0L
+        screenSeekWasPlaying = service.isPlaying
+        if (screenSeekWasPlaying) service.pause()
+    }
+
+    /** Throttled live seek: enough updates to feel continuous, few enough to keep the decoder calm. */
+    private fun applyScreenSeek() {
+        if (!screenSeekActive) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - screenSeekLastStamp < SCREEN_SEEK_INTERVAL) return
+        if (screenSeekLastTime >= 0L && abs(targetTime - screenSeekLastTime) < SCREEN_SEEK_STEP) return
+        screenSeekLastStamp = now
+        screenSeekLastTime = targetTime
+        player.seek(targetTime, false)
+    }
+
+    /** Release: land exactly on the target and go back to playing if we paused it. */
+    private fun finishScreenSeek() {
+        if (!screenSeekActive) return
+        screenSeekActive = false
+        screenSeekLastTime = -1L
+        player.seek(targetTime, false)
+        if (screenSeekWasPlaying) player.play()
+        screenSeekWasPlaying = false
+    }
+
+    /** Gesture cancelled: put the picture back where it came from. */
+    private fun abortScreenSeek() {
+        if (!screenSeekActive) return
+        screenSeekActive = false
+        screenSeekLastTime = -1L
+        player.seek(startTimePos, false)
+        if (screenSeekWasPlaying) player.play()
+        screenSeekWasPlaying = false
     }
 
     private fun updateBrightness(dy: Float) {
@@ -351,7 +432,7 @@ class MxGestureDelegate(
         when (gesture) {
             GESTURE_SEEK -> {
                 if (allowSwipeSeek && length > 0L && player.service?.isSeekable == true) {
-                    player.seek(targetTime, true)
+                    if (screenSeekActive) finishScreenSeek() else player.seek(targetTime, true)
                 }
                 controls.show()
             }
@@ -385,6 +466,7 @@ class MxGestureDelegate(
             player.service?.setRate(savedRate, false)
             fastPlayActive = false
         }
+        abortScreenSeek()
         gesture = GESTURE_NONE
         multiPointer = false
         tapCount = 0
@@ -451,7 +533,7 @@ class MxGestureDelegate(
     }
 
     private fun showPanel(iconRes: Int, title: String, subtitle: String, progress: Int, max: Int,
-                          previewMode: Boolean = false) {
+                          previewMode: Boolean = false, docked: Boolean = false) {
         handler.removeCallbacks(hidePanelRunnable)
         panel.visibility = View.VISIBLE
         panel.alpha = 1f
@@ -460,10 +542,25 @@ class MxGestureDelegate(
         panelSubtitle.text = subtitle
         panelProgress.max = max
         panelProgress.progress = progress.coerceIn(0, max)
+        dockPanel(docked)
         // The seek panel trades the big icon for the frame thumbnail once the first one arrives.
-        val showFrame = previewMode && previewFrame != null
-        panelIcon.visibility = if (showFrame) View.GONE else View.VISIBLE
+        val showFrame = previewMode && previewFrame != null && !docked
+        panelIcon.visibility = if (showFrame || docked) View.GONE else View.VISIBLE
         previewImage.visibility = if (showFrame) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Direct preview is drawn in the main picture, so the panel moves to the top and drops its icon
+     * to stay out of the way of what the user is scrubbing.
+     */
+    private fun dockPanel(docked: Boolean) {
+        val params = panelCard.layoutParams as FrameLayout.LayoutParams
+        val gravity = if (docked) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
+        val top = if (docked) (16 * player.resources.displayMetrics.density).toInt() else 0
+        if (params.gravity == gravity && params.topMargin == top) return
+        params.gravity = gravity
+        params.topMargin = top
+        panelCard.layoutParams = params
     }
 
     private fun hidePanel() {
@@ -491,7 +588,7 @@ class MxGestureDelegate(
      * newest target is remembered, and small movements reuse the frame already on screen.
      */
     private fun requestPreviewFrame(timeMs: Long) {
-        if (!allowSeekPreview) return
+        if (seekPreviewMode != SEEK_PREVIEW_OVERLAY) return
         if (previewRequestedTime >= 0L && abs(timeMs - previewRequestedTime) < PREVIEW_STEP) return
         previewRequestedTime = timeMs
         previewPendingTime = timeMs

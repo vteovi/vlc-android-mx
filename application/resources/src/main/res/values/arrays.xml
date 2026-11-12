@@ -727,5 +727,16 @@
         <item>@string/report_a_bug</item>
         <item>@string/report_a_crash</item>
     </string-array>
+    <string-array name="mx_seek_preview_entries">
+        <item>@string/mx_seek_preview_screen</item>
+        <item>@string/mx_seek_preview_overlay</item>
+        <item>@string/mx_seek_preview_none</item>
+    </string-array>
+
+    <string-array name="mx_seek_preview_values">
+        <item>screen</item>
+        <item>overlay</item>
+        <item>off</item>
+    </string-array>
 
 </resources>

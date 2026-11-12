@@ -201,10 +201,12 @@
                 android:summary="@string/mx_swipe_seek_summary"
                 android:title="@string/mx_swipe_seek_title" />
 
-        <CheckBoxPreference
-                android:defaultValue="true"
+        <ListPreference
+                android:defaultValue="screen"
                 android:dependency="mx_swipe_seek"
-                android:key="mx_seek_preview"
+                android:entries="@array/mx_seek_preview_entries"
+                android:entryValues="@array/mx_seek_preview_values"
+                android:key="mx_seek_preview_mode"
                 app:iconSpaceReserved="false"
                 app:singleLineTitle="false"
                 android:summary="@string/mx_seek_preview_summary"
