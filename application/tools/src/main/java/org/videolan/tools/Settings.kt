@@ -239,6 +239,7 @@ const val FASTPLAY_SPEED = "fastplay_speed"
 // MX Player style skin and gestures
 const val MX_GESTURE_MODE = "mx_gesture_mode"
 const val MX_SWIPE_SEEK = "mx_swipe_seek"
+const val MX_SEEK_PREVIEW = "mx_seek_preview"
 const val MX_DOUBLE_TAP = "mx_double_tap"
 const val MX_LONG_PRESS_SPEED = "mx_long_press_speed"
 const val MX_PINCH_ZOOM = "mx_pinch_zoom"

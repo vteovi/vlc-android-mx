@@ -1463,6 +1463,9 @@
     <string name="mx_gesture_mode_summary">Replace the stock player overlay with a top bar, side actions, a bottom timeline and MX style gestures</string>
     <string name="mx_swipe_seek_title">Swipe to seek with preview</string>
     <string name="mx_swipe_seek_summary">Drag horizontally to preview a target time, release to jump</string>
+    <string name="mx_seek_preview_title">Show frame preview while seeking</string>
+    <string name="mx_seek_preview_summary">Display a thumbnail of the target position above the time while dragging</string>
+    <string name="mx_seek_preview">Seek preview</string>
     <string name="mx_double_tap_title">Double tap actions</string>
     <string name="mx_double_tap_summary">Double tap left/right to jump, centre to play or pause</string>
     <string name="mx_long_press_speed_title">Long press for 2x speed</string>
