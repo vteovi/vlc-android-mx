@@ -35,6 +35,7 @@ import androidx.core.content.getSystemService
 import androidx.core.view.GestureDetectorCompat
 import org.videolan.libvlc.interfaces.IVLCVout
 import org.videolan.libvlc.util.AndroidUtil
+import org.videolan.tools.CUSTOM_POPUP_ASPECT
 import org.videolan.tools.CUSTOM_POPUP_HEIGHT
 import org.videolan.tools.Settings
 import org.videolan.tools.putSingle
@@ -52,6 +53,10 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
     private var popupHeight: Int = 0
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
+    /** Width / height of the popup window. Pinch zoom and the video layout both keep it. */
+    private var windowAspect = DEFAULT_ASPECT
+    private var pinchStartWidth: Int = 0
+    private var scaling = false
 
     private var initialX: Int = 0
     private var initialY: Int = 0
@@ -94,36 +99,63 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
      * Update layout dimensions and apply layout params to window manager
      */
     fun setViewSize(requestedWidth: Int, requestedHeight: Int) {
-        var width = requestedWidth
-        var height = requestedHeight
-        if (width > screenWidth) {
-            height = height * screenWidth / width
-            width = screenWidth
+        if (requestedWidth <= 0 || requestedHeight <= 0) return
+        if (!::mLayoutParams.isInitialized) return
+        val wm = windowManager ?: return
+        if (screenWidth == 0 || screenHeight == 0) updateWindowSize()
+        val size = fitOnScreen(requestedWidth, requestedHeight)
+        popupWidth = size.x
+        popupHeight = size.y
+        if (popupHeight > 0) windowAspect = popupWidth.toFloat() / popupHeight
+        containInScreen(popupWidth, popupHeight)
+        mLayoutParams.width = popupWidth
+        mLayoutParams.height = popupHeight
+        wm.updateViewLayout(this, mLayoutParams)
+        // The vout has to follow the size that is really applied, otherwise the rendered video
+        // keeps the previous (unclipped) size and the picture looks off-centre.
+        vlcVout?.setWindowSize(popupWidth, popupHeight)
+    }
+
+    /** Fits the request on screen and clamps it to the minimum size, always keeping the ratio. */
+    private fun fitOnScreen(width: Int, height: Int): Point {
+        var w = width.coerceAtLeast(1)
+        var h = height.coerceAtLeast(1)
+        if (screenWidth > 0 && screenHeight > 0) {
+            val fit = minOf(1.0, screenWidth.toDouble() / w, screenHeight.toDouble() / h)
+            if (fit < 1.0) {
+                w = (w * fit).toInt().coerceAtLeast(1)
+                h = (h * fit).toInt().coerceAtLeast(1)
+            }
         }
-        if (height > screenHeight) {
-            width = width * screenHeight / height
-            height = screenHeight
+        val minHeight = (MIN_POPUP_HEIGHT_DP * resources.displayMetrics.density).toInt()
+        if (h < minHeight) {
+            h = minHeight
+            w = (h * windowAspect).toInt().coerceAtLeast(1)
         }
-        containInScreen(width, height)
-        mLayoutParams.width = width
-        mLayoutParams.height = height
-        windowManager!!.updateViewLayout(this, mLayoutParams)
-        if (vlcVout != null)
-            vlcVout!!.setWindowSize(popupWidth, popupHeight)
+        return Point(w, h)
     }
 
     private fun init(context: Context) {
         windowManager = context.applicationContext.getSystemService()
-
         screenSize = DisplayMetrics().also { windowManager!!.defaultDisplay.getMetrics(it) }
+        updateWindowSize()
         popupWidth = context.resources.getDimensionPixelSize(R.dimen.video_pip_width)
         popupHeight = context.resources.getDimensionPixelSize(R.dimen.video_pip_height)
-        val ratio = popupWidth.toFloat() / popupHeight.toFloat()
-        val customPopupHeight = Settings.getInstance(context).getInt(CUSTOM_POPUP_HEIGHT, -1)
+        windowAspect = popupWidth.toFloat() / popupHeight.toFloat()
+        val settings = Settings.getInstance(context)
+        // Restore the ratio the user zoomed the last popup to. Deriving the width from the
+        // 16:9 default instead turned every portrait video back into a landscape window.
+        val storedAspect = settings.getFloat(CUSTOM_POPUP_ASPECT, -1f)
+        if (storedAspect.isFinite() && storedAspect > 0f) windowAspect = storedAspect
+        val customPopupHeight = settings.getInt(CUSTOM_POPUP_HEIGHT, -1)
         if (customPopupHeight != -1) {
             popupHeight = customPopupHeight
-            popupWidth = (popupHeight.toFloat() * ratio).toInt()
+            popupWidth = (popupHeight.toFloat() * windowAspect).toInt()
         }
+        // A stored size from a bigger screen (or another orientation) must not open off-screen.
+        val initial = fitOnScreen(popupWidth, popupHeight)
+        popupWidth = initial.x
+        popupHeight = initial.y
 
         vlcVout?.setWindowSize(popupWidth, popupHeight)
 
@@ -143,8 +175,6 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
         if (!isInEditMode) {
             mLayoutParams = layoutParams as WindowManager.LayoutParams
         }
-
-        updateWindowSize()
     }
 
     private fun updateWindowSize() {
@@ -183,24 +213,60 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
     }
 
     override fun onScale(detector: ScaleGestureDetector): Boolean {
-        scaleFactor *= detector.scaleFactor.toDouble()
-
-        scaleFactor = scaleFactor.coerceIn(0.1, 5.0)
-        popupWidth = (width * scaleFactor).toInt()
-        popupHeight = (height * scaleFactor).toInt()
+        if (!scaling || pinchStartWidth <= 0) return false
+        scaleFactor = (scaleFactor * detector.scaleFactor).coerceIn(MIN_SCALE, MAX_SCALE)
+        // Height comes from the locked ratio instead of being scaled separately: two independent
+        // factors (fed by view sizes that the video layout may change mid-gesture) drifted a 9:16
+        // window towards 16:9.
+        val scaledWidth = (pinchStartWidth * scaleFactor).toInt().coerceAtLeast(1)
+        val size = fitOnScreen(scaledWidth, (scaledWidth / windowAspect).toInt().coerceAtLeast(1))
+        popupWidth = size.x
+        popupHeight = size.y
+        // Keep the accumulated factor in sync with what really fits, otherwise shrinking back
+        // needs a long dead travel once the popup has hit the screen edges.
+        scaleFactor = (popupWidth.toDouble() / pinchStartWidth).coerceIn(MIN_SCALE, MAX_SCALE)
         vlcVout?.setWindowSize(popupWidth, popupHeight)
         return true
     }
 
     override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+        // Prefer the window params: they are the size that was actually requested, while
+        // View.width/height can still hold the previous layout values for one frame.
+        val paramsSet = ::mLayoutParams.isInitialized
+        pinchStartWidth = when {
+            paramsSet && mLayoutParams.width > 0 -> mLayoutParams.width
+            width > 0 -> width
+            else -> popupWidth
+        }
+        val startHeight = when {
+            paramsSet && mLayoutParams.height > 0 -> mLayoutParams.height
+            height > 0 -> height
+            else -> popupHeight
+        }
+        if (pinchStartWidth <= 0 || startHeight <= 0) return false
+        // Lock the ratio the popup currently shows, so zooming a portrait window stays portrait.
+        windowAspect = pinchStartWidth.toFloat() / startHeight
+        scaleFactor = 1.0
+        scaling = true
         return true
     }
 
     override fun onScaleEnd(detector: ScaleGestureDetector) {
+        scaling = false
+        // setViewSize round-trips the size through integers, so keep the ratio the gesture locked
+        // instead of letting rounding creep the window back towards the default 16:9.
+        val lockedAspect = windowAspect
         setViewSize(popupWidth, popupHeight)
-        Settings.getInstance(context).putSingle(CUSTOM_POPUP_HEIGHT, popupHeight)
+        windowAspect = lockedAspect
+        Settings.getInstance(context).apply {
+            putSingle(CUSTOM_POPUP_HEIGHT, popupHeight)
+            putSingle(CUSTOM_POPUP_ASPECT, windowAspect)
+        }
         scaleFactor = 1.0
     }
+
+    /** True while a pinch is in progress; the video layout must not resize the window then. */
+    val isScaling: Boolean get() = scaling
 
     private fun containInScreen(width: Int, height: Int) {
         mLayoutParams.x = mLayoutParams.x.coerceAtLeast(0)
@@ -213,5 +279,11 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
 
     companion object {
         private const val TAG = "VLC/PopupView"
+
+        /** 240dp x 135dp, the default popup size, kept for the first launch. */
+        private const val DEFAULT_ASPECT = 16f / 9f
+        private const val MIN_SCALE = 0.2
+        private const val MAX_SCALE = 8.0
+        private const val MIN_POPUP_HEIGHT_DP = 60
     }
 }

@@ -168,6 +168,9 @@ class PopupManager(private val service: PlaybackService) : PlaybackService.Callb
     override fun onNewVideoLayout(vlcVout: IVLCVout, width: Int, height: Int,
                                   visibleWidth: Int, visibleHeight: Int, sarNum: Int, sarDen: Int) {
         val view = rootView ?: return
+        // A pinch is in progress: resizing from here would fight the gesture and could snap the
+        // window back to the layout's idea of the ratio. The gesture applies the size itself.
+        if (view.isScaling) return
         val displayW = view.width
         val displayH = view.height
 
@@ -205,6 +208,8 @@ class PopupManager(private val service: PlaybackService) : PlaybackService.Callb
                 val vw = visibleWidth * sarNum.toDouble() / sarDen
                 vw / visibleHeight
             }
+            // A bogus video ratio must never resize the window.
+            if (!ar.isFinite() || ar <= 0.0) return
 
             // compute the display aspect ratio
             val dar = dw / dh

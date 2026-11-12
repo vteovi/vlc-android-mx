@@ -298,6 +298,8 @@ const val PERMISSION_NEXT_ASK = "permission_next_ask"
 const val WIDGETS_BACKGROUND_LAST_COLORS = "widgets_background_last_colors"
 const val WIDGETS_FOREGROUND_LAST_COLORS = "widgets_foreground_last_colors"
 const val CUSTOM_POPUP_HEIGHT = "custom_popup_height"
+/** Width / height of the floating popup window, so a portrait popup stays portrait. */
+const val CUSTOM_POPUP_ASPECT = "custom_popup_aspect"
 
 const val SLEEP_TIMER_DEFAULT_INTERVAL = "sleep_timer_default_interval"
 const val SLEEP_TIMER_DEFAULT_WAIT = "sleep_timer_default_wait"
