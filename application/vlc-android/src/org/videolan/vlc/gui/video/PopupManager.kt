@@ -29,7 +29,6 @@ import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
-import android.util.Log
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -61,7 +60,6 @@ import org.videolan.vlc.gui.view.PopupLayout
 import org.videolan.vlc.isVLC4
 import org.videolan.vlc.util.getPendingIntent
 import kotlin.math.absoluteValue
-import kotlin.math.floor
 
 class PopupManager(private val service: PlaybackService) : PlaybackService.Callback, GestureDetector.OnDoubleTapListener, View.OnClickListener, GestureDetector.OnGestureListener, IVLCVout.OnNewVideoLayoutListener, IVLCVout.Callback {
 
@@ -168,58 +166,39 @@ class PopupManager(private val service: PlaybackService) : PlaybackService.Callb
     override fun onNewVideoLayout(vlcVout: IVLCVout, width: Int, height: Int,
                                   visibleWidth: Int, visibleHeight: Int, sarNum: Int, sarDen: Int) {
         val view = rootView ?: return
-        // A pinch is in progress: resizing from here would fight the gesture and could snap the
-        // window back to the layout's idea of the ratio. The gesture applies the size itself.
+        val ar = displayAspect(visibleWidth, visibleHeight, sarNum, sarDen)
+        // The popup always keeps the ratio of the video being played; a pinch only changes the
+        // size, so hand the ratio over in every case. While a pinch is running it is only
+        // recorded, and the gesture applies it when it ends.
+        if (ar > 0f) view.setVideoAspect(ar)
         if (view.isScaling) return
-        val displayW = view.width
-        val displayH = view.height
-
-        if (isVLC4())
-        {
-            if (width == 0 || height == 0) {
-                view.setViewSize(displayW, displayH)
-                vlcVout?.setWindowSize(displayW, displayH)
-                return
-            }
-
-            view.setViewSize(visibleWidth, visibleHeight)
+        // The ratio is not known yet (surface not laid out): keep the vout in sync with the
+        // window that is already on screen instead of resizing anything.
+        if (ar <= 0f) {
+            val currentWidth = view.currentWidth
+            val currentHeight = view.currentHeight
+            if (currentWidth > 0 && currentHeight > 0)
+                vlcVout.setWindowSize(currentWidth, currentHeight)
         }
+    }
+
+    /**
+     * Display ratio (width / height) of the video, 0 when the layout does not provide it yet.
+     *
+     * Only the visible size is used: the frame size can still be 0 for the new video while the
+     * visible one is already valid, and relying on it dropped the ratio update that has to follow
+     * a playlist switch.
+     */
+    private fun displayAspect(visibleWidth: Int, visibleHeight: Int,
+                              sarNum: Int, sarDen: Int): Float {
+        if (visibleWidth <= 0 || visibleHeight <= 0) return 0f
+        val ar = if (!isVLC4() && sarNum > 0 && sarDen > 0 && sarNum != sarDen)
+        /* Use the specified aspect ratio */
+            visibleWidth * sarNum.toDouble() / sarDen / visibleHeight
         else
-        {
-            // sanity check
-            if (displayW * displayH == 0) {
-                Log.e(TAG, "Invalid surface size")
-                return
-            }
-
-            if (width == 0 || height == 0) {
-                view.setViewSize(displayW, displayH)
-                return
-            }
-
-            // compute the aspect ratio
-            var dw = displayW.toDouble()
-            var dh = displayH.toDouble()
-            val ar = if (sarDen == sarNum) {
-                /* No indication about the density, assuming 1:1 */
-                visibleWidth.toDouble() / visibleHeight.toDouble()
-            } else {
-                /* Use the specified aspect ratio */
-                val vw = visibleWidth * sarNum.toDouble() / sarDen
-                vw / visibleHeight
-            }
-            // A bogus video ratio must never resize the window.
-            if (!ar.isFinite() || ar <= 0.0) return
-
-            // compute the display aspect ratio
-            val dar = dw / dh
-            if (dar < ar)
-                dh = dw / ar
-            else
-                dw = dh * ar
-
-            view.setViewSize(floor(dw).toInt(), floor(dh).toInt())
-        }
+        /* No indication about the density, assuming 1:1 */
+            visibleWidth.toDouble() / visibleHeight.toDouble()
+        return if (ar.isFinite() && ar > 0.0) ar.toFloat() else 0f
     }
 
     override fun update() {}

@@ -40,6 +40,8 @@ import org.videolan.tools.CUSTOM_POPUP_HEIGHT
 import org.videolan.tools.Settings
 import org.videolan.tools.putSingle
 import org.videolan.vlc.R
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListener, View.OnTouchListener {
 
@@ -55,6 +57,8 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
     private var screenHeight: Int = 0
     /** Width / height of the popup window. Pinch zoom and the video layout both keep it. */
     private var windowAspect = DEFAULT_ASPECT
+    /** Width / height of the video being rendered, 0 while it is not known yet. */
+    private var videoAspect = 0f
     private var pinchStartWidth: Int = 0
     private var scaling = false
 
@@ -95,18 +99,55 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
         gestureDetector = gdc
     }
 
-    /*
-     * Update layout dimensions and apply layout params to window manager
+    /** Width really applied to the window, usable before the first layout pass. */
+    val currentWidth: Int
+        get() = if (::mLayoutParams.isInitialized && mLayoutParams.width > 0) mLayoutParams.width else popupWidth
+
+    /** Height really applied to the window, usable before the first layout pass. */
+    val currentHeight: Int
+        get() = if (::mLayoutParams.isInitialized && mLayoutParams.height > 0) mLayoutParams.height else popupHeight
+
+    /** Ratio the popup keeps: the video one as soon as it is known, the window one otherwise. */
+    private fun lockAspect(): Float = when {
+        videoAspect > 0f -> videoAspect
+        windowAspect > 0f -> windowAspect
+        else -> DEFAULT_ASPECT
+    }
+
+    /**
+     * Declares the ratio of the video being played. The window always keeps it, a pinch only
+     * changes the size.
+     *
+     * Locking the ratio the window happened to have is what brought the previous video's ratio
+     * back: watching a 4:3 video then a 16:9 one, the window could still be 4:3 when the gesture
+     * started, so zooming froze that ratio for good.
      */
-    fun setViewSize(requestedWidth: Int, requestedHeight: Int) {
-        if (requestedWidth <= 0 || requestedHeight <= 0) return
-        if (!::mLayoutParams.isInitialized) return
+    fun setVideoAspect(aspect: Float) {
+        if (!aspect.isFinite() || aspect <= 0f) return
+        val changed = abs(aspect - lockAspect()) > ASPECT_EPSILON
+        videoAspect = aspect
+        // During a pinch the gesture owns the size: it applies the ratio when it ends.
+        if (scaling || !::mLayoutParams.isInitialized) return
+        if (changed && popupWidth > 0 && popupHeight > 0) {
+            // Keep the area so the popup roughly keeps its size and only its shape follows the
+            // video: the next video is not shown in a window four times bigger.
+            val area = popupWidth.toDouble() * popupHeight
+            applySize(sqrt(area * aspect).toInt().coerceAtLeast(1))
+        } else {
+            applySize(popupWidth.coerceAtLeast(1))
+        }
+    }
+
+    /** Applies [width] to the window, deriving the height from the locked ratio. */
+    private fun applySize(width: Int) {
+        if (width <= 0 || !::mLayoutParams.isInitialized) return
         val wm = windowManager ?: return
         if (screenWidth == 0 || screenHeight == 0) updateWindowSize()
-        val size = fitOnScreen(requestedWidth, requestedHeight)
+        val aspect = lockAspect()
+        val size = fitOnScreen(width, (width / aspect).toInt().coerceAtLeast(1))
         popupWidth = size.x
         popupHeight = size.y
-        if (popupHeight > 0) windowAspect = popupWidth.toFloat() / popupHeight
+        windowAspect = popupWidth.toFloat() / popupHeight
         containInScreen(popupWidth, popupHeight)
         mLayoutParams.width = popupWidth
         mLayoutParams.height = popupHeight
@@ -130,7 +171,7 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
         val minHeight = (MIN_POPUP_HEIGHT_DP * resources.displayMetrics.density).toInt()
         if (h < minHeight) {
             h = minHeight
-            w = (h * windowAspect).toInt().coerceAtLeast(1)
+            w = (h * lockAspect()).toInt().coerceAtLeast(1)
         }
         return Point(w, h)
     }
@@ -219,7 +260,7 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
         // factors (fed by view sizes that the video layout may change mid-gesture) drifted a 9:16
         // window towards 16:9.
         val scaledWidth = (pinchStartWidth * scaleFactor).toInt().coerceAtLeast(1)
-        val size = fitOnScreen(scaledWidth, (scaledWidth / windowAspect).toInt().coerceAtLeast(1))
+        val size = fitOnScreen(scaledWidth, (scaledWidth / lockAspect()).toInt().coerceAtLeast(1))
         popupWidth = size.x
         popupHeight = size.y
         // Keep the accumulated factor in sync with what really fits, otherwise shrinking back
@@ -230,22 +271,15 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
     }
 
     override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-        // Prefer the window params: they are the size that was actually requested, while
-        // View.width/height can still hold the previous layout values for one frame.
-        val paramsSet = ::mLayoutParams.isInitialized
-        pinchStartWidth = when {
-            paramsSet && mLayoutParams.width > 0 -> mLayoutParams.width
-            width > 0 -> width
-            else -> popupWidth
-        }
-        val startHeight = when {
-            paramsSet && mLayoutParams.height > 0 -> mLayoutParams.height
-            height > 0 -> height
-            else -> popupHeight
-        }
-        if (pinchStartWidth <= 0 || startHeight <= 0) return false
-        // Lock the ratio the popup currently shows, so zooming a portrait window stays portrait.
-        windowAspect = pinchStartWidth.toFloat() / startHeight
+        if (!::mLayoutParams.isInitialized) return false
+        // Re-align on the video ratio before the gesture starts. The window can still be showing
+        // the previous video's ratio for a moment; using that as the base of the pinch is exactly
+        // how a 16:9 video ended up locked in the 4:3 shape of the one played before.
+        if (videoAspect > 0f && abs(windowAspect - videoAspect) > ASPECT_EPSILON)
+            applySize(currentWidth)
+        pinchStartWidth = currentWidth
+        if (pinchStartWidth <= 0 || currentHeight <= 0) return false
+        windowAspect = lockAspect()
         scaleFactor = 1.0
         scaling = true
         return true
@@ -253,11 +287,9 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
 
     override fun onScaleEnd(detector: ScaleGestureDetector) {
         scaling = false
-        // setViewSize round-trips the size through integers, so keep the ratio the gesture locked
-        // instead of letting rounding creep the window back towards the default 16:9.
-        val lockedAspect = windowAspect
-        setViewSize(popupWidth, popupHeight)
-        windowAspect = lockedAspect
+        // Recompute from the video ratio rather than from the size the gesture produced, so that
+        // integer rounding cannot creep back towards the previous ratio.
+        applySize(popupWidth.coerceAtLeast(1))
         Settings.getInstance(context).apply {
             putSingle(CUSTOM_POPUP_HEIGHT, popupHeight)
             putSingle(CUSTOM_POPUP_ASPECT, windowAspect)
@@ -285,5 +317,7 @@ class PopupLayout : ConstraintLayout, ScaleGestureDetector.OnScaleGestureListene
         private const val MIN_SCALE = 0.2
         private const val MAX_SCALE = 8.0
         private const val MIN_POPUP_HEIGHT_DP = 60
+        /** Below this difference two ratios are considered the same (4:3 vs 1.333). */
+        private const val ASPECT_EPSILON = 0.01f
     }
 }
