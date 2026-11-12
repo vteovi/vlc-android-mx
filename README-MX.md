@@ -4,7 +4,7 @@
 
 - 仓库：<https://github.com/vteovi/vlc-android-mx>
 - 基线版本：`v3.7.2` / versionCode `3070200`
-- 本版版本：`v3.10.0` / versionCode `3070205`（新增功能，按 SemVer 升 MINOR，versionCode 单调递增）
+- 本版版本：`v3.15.10` / versionCode `3070222`（versionCode 单调递增）
 - 许可证：**GPLv2 or later**（应用，见 `COPYING` / `LICENSE`）；libVLC 引擎为 LGPLv2。本仓库保留上游全部版权与许可声明。本改造只实现交互逻辑与自绘界面，**未使用 MX Player 的任何图标、素材、代码或商标**。
 
 ## 改了什么
@@ -19,14 +19,16 @@
 - 顶部面板显示图标、百分比与进度条。
 
 ### 3. 双击 / 捏合
-- 双击左 1/3 快退、右 1/3 快进（默认 **60 秒**，可在设置里改为 5/10/15/30 秒），中间双击播放/暂停。
+- 双击与原生一致：左侧 1/4 快退、右侧 1/4 快进，中间播放/暂停；跳转秒数直接读 VLC 自己的「双击跳转时长」（设置 → 控制）。
+- 长按画面 = 播放器自带的**快放**（设置 → 控制 → 长按加速播放，倍速同样在那一页调），松手恢复原速率；MX 手势模式下同样生效。
 - 双指捏合切换画面比例（铺满 / 最佳适配）。
 - 从屏幕底部上滑锁定屏幕，锁屏后再上滑解锁；锁屏期间所有手势被屏蔽。
 
 ### 4. MX 风格控件布局
 - 顶部：返回、文件名标题、**弹出播放器（PiP / 小窗）**、更多选项。
-- 右侧竖排：画面比例、旋转屏幕、倍速、循环模式、字幕/音轨、锁屏。
-- 底部：当前时间 / 总时长、可拖动时间轴、快退 / 播放暂停 / 快进（按钮上标着当前跳转秒数，默认 60）。
+- 标题栏下方一行：字幕/音轨、锁屏、循环、随机、画面比例、旋转、倍速（全部靠左排列）。
+- 底部：定位（跳转到指定时间）、当前时间 / 总时长、可拖动时间轴、上一首 / 快退 / 播放暂停 / 快进 / 下一首。
+- 快退 / 快进与原生 HUD 一致：单击按「快进/快退时长」（默认 10 秒），长按按「长按快进/快退时长」（默认 20 秒），按钮上的数字跟着设置走。
 - 单击空白处显示/隐藏控件，默认 4 秒后自动隐藏（沿用 VLC 的 HUD 超时设置）。
 - 上下渐变压满屏幕边缘，不再给系统栏留白（去掉了 MX 层根布局的 `fitsSystemWindows`）。
 
@@ -42,7 +44,7 @@
 - 顶部「更多选项」打开原生 `PlayerOptionsDelegate` 面板，里面的锁屏、息屏、跳转时间、均衡器、AB 重复、章节、书签、播放列表保存、视频信息等原功能全部保留。
 
 ### 5. 设置项
-播放器内「设置 → 控制」页新增 **MX style player** 分组，可分别开关上述手势、切换回 VLC 原生交互、调整双击跳转秒数。设置立即生效，无需重启播放器。
+播放器内「设置 → 控制」页新增 **MX style player** 分组，可分别开关上述手势（滑动调进度及其预览方式、双击、捏合、上滑锁屏）并切换回 VLC 原生交互。双击跳转秒数、快退/快进时长、长按快放均沿用 VLC 原有的控制设置。设置立即生效，无需重启播放器。
 
 > 关闭「Use MX style gestures and controls」后，`VideoPlayerActivity` 会把触摸事件交回上游 `VideoTouchDelegate`，界面与手势完全回到原生 VLC。
 
@@ -55,7 +57,6 @@
 | `application/vlc-android/res/layout/mx_player_hud.xml` | 新增，顶栏 / 右侧 / 底栏布局 |
 | `application/vlc-android/res/layout/mx_gesture_panel.xml` | 新增，手势反馈面板 |
 | `application/vlc-android/res/drawable/mx_panel_bg.xml` | 新增，圆角半透明背景 |
-| `application/vlc-android/res/values/mx_arrays.xml` | 新增，跳转秒数选项 |
 | `application/vlc-android/res/layout/player.xml` | 修改，挂载两个 ViewStub |
 | `application/vlc-android/src/org/videolan/vlc/gui/video/VideoPlayerActivity.kt` | 修改，触摸分流、初始化、设置热更新、销毁释放 |
 | `application/tools/src/main/java/org/videolan/tools/Settings.kt` | 修改，新增 preference key |

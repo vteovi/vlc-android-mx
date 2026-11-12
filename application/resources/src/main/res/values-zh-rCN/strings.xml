@@ -1439,7 +1439,6 @@
     <string name="mx_pinch_zoom_summary">双指张开或合拢切换画面比例</string>
     <string name="mx_lock_gesture_title">上滑锁定屏幕</string>
     <string name="mx_lock_gesture_summary">从屏幕下边缘上滑锁定，再次上滑解锁</string>
-    <string name="mx_double_tap_jump_title">双击跳转时长</string>
     <string name="mx_brightness">亮度</string>
     <string name="mx_volume">音量</string>
     <string name="mx_zoom">画面大小</string>
