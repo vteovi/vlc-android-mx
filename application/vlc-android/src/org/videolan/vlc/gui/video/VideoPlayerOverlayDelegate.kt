@@ -42,6 +42,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.StringRes
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -62,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.videolan.libvlc.util.AndroidUtil
+import org.videolan.medialibrary.Tools
 import org.videolan.medialibrary.interfaces.media.MediaWrapper
 import org.videolan.medialibrary.media.MediaWrapperImpl
 import org.videolan.resources.AndroidDevices
@@ -75,6 +77,7 @@ import org.videolan.tools.KEY_PLAYBACK_SPEED_VIDEO_GLOBAL
 import org.videolan.tools.SCREENSHOT_MODE
 import org.videolan.tools.SHOW_ORIENTATION_BUTTON
 import org.videolan.tools.Settings
+import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.tools.VIDEO_TRANSITION_SHOW
 import org.videolan.tools.dp
 import org.videolan.tools.formatRateString
@@ -407,6 +410,14 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
     @TargetApi(Build.VERSION_CODES.KITKAT)
     fun dimStatusBar(dim: Boolean) {
         if (player.isNavMenu) return
+
+        // MX: in "always show the status bar" mode, immersive playback must not hide it.
+        if (dim && player.playbackStatusBarMode == 2) {
+            player.applyPlaybackStatusBar(true)
+            playerUiContainer.setPadding(0, 0, 0, 0)
+            playerUiContainer.fitsSystemWindows = !player.isLocked
+            return
+        }
 
         var visibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         var navbar = 0
@@ -1144,6 +1155,12 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
 
     fun showBookmarks() {
         player.service?.let {
+            // The bookmarks panel lives inside player_hud.xml, which MX mode keeps hidden (or never
+            // inflates at all), so the stock path would crash or show an invisible panel.
+            if (player.isMxControlsEnabled()) {
+                showBookmarksDialog(it)
+                return@let
+            }
             if (bookmarkListDelegate == null) {
                 bookmarkListDelegate = BookmarkListDelegate(player, it, player.bookmarkModel, true)
                 bookmarkListDelegate?.markerContainer = hudBinding.bookmarkMarkerContainer
@@ -1159,6 +1176,33 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
             val top = hudBinding.playerOverlayTime.top
             bookmarkListDelegate?.setProgressHeight((top + 12.dp).toFloat())
         }
+    }
+
+    /**
+     * MX mode has no stock HUD, so the bookmarks panel (inflated from player_hud.xml) cannot be
+     * used. List the bookmarks of the current media in a plain dialog instead and jump on tap.
+     */
+    private fun showBookmarksDialog(service: PlaybackService) {
+        val bookmarks = service.currentMediaWrapper?.bookmarks?.toList().orEmpty()
+        val entries = bookmarks.map { bookmark ->
+            val time = Tools.millisToString(bookmark.time)
+            val title = bookmark.title
+            if (title.isNullOrBlank()) time else "$time  ·  $title"
+        }.toMutableList()
+        entries.add(player.getString(R.string.add_bookmark))
+        AlertDialog.Builder(player)
+                .setTitle(R.string.bookmarks)
+                .setItems(entries.toTypedArray()) { _, which ->
+                    if (which < bookmarks.size) {
+                        service.setTime(bookmarks[which].time)
+                    } else {
+                        player.bookmarkModel.addBookmark(player)
+                        // Bookmarks are stored asynchronously: reopen once the new one exists.
+                        player.handler.postDelayed({ showBookmarksDialog(service) }, 500L)
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
     }
 
     fun rotateBookmarks() {

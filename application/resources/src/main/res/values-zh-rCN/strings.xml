@@ -347,6 +347,10 @@
     <string name="screen_orientation_landscape_reverse">横向旋转 180°</string>
     <string name="screen_orientation_landscape_sensor">横向 (跟随传感器)</string>
     <string name="screen_orientation_last_locked">上次锁定的方向</string>
+    <string name="auto_rotate_mode_title">自动旋转方式</string>
+    <string name="auto_rotate_mode_summary">视频画面未锁定方向时，由谁决定屏幕方向</string>
+    <string name="auto_rotate_mode_system">跟随系统旋转锁定</string>
+    <string name="auto_rotate_mode_sensor">始终跟随设备重力感应</string>
     <string name="enable_black_theme">黑色主题</string>
     <string name="dark_theme">深色主题</string>
     <string name="theme_auto">自动主题</string>
@@ -903,6 +907,11 @@
     <string name="misc">杂项</string>
     <string name="popup_force_legacy_title">使用自定义画中画弹窗</string>
     <string name="popup_force_legacy_summary">使用大小可调整的自定义画中画弹出窗口</string>
+    <string name="playback_status_bar_title">播放时显示系统状态栏</string>
+    <string name="playback_status_bar_summary">在视频上方保留 WiFi、电量、时间等系统状态栏，导航栏仍然隐藏</string>
+    <string name="playback_status_bar_never">不显示（全屏沉浸）</string>
+    <string name="playback_status_bar_with_controls">仅在显示控制栏时</string>
+    <string name="playback_status_bar_always">始终显示</string>
     <string name="restore_background_video_title">恢复后台播放的视频</string>
     <string name="restore_background_video_summary">重新打开 VLC for Android 时恢复后台播放的视频</string>
     <string name="device_default">设备默认</string>
@@ -1476,7 +1485,8 @@
     <string name="mx_no_previous">已经是第一个了</string>
     <string name="mx_no_next">已经是最后一个了</string>
     <string name="mx_orientation_menu">屏幕方向</string>
-    <string name="mx_rotation_auto">自动（跟随设备）</string>
+    <string name="mx_rotation_auto_system">自动（跟随系统）</string>
+    <string name="mx_rotation_auto_device">自动（跟随设备）</string>
     <string name="mx_rotation_reverse_portrait">反向竖屏</string>
     <string name="mx_rotation_reverse_landscape">反向横屏</string>
     <string name="mx_shuffle">随机播放</string>

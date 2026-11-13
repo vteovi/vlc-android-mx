@@ -82,6 +82,23 @@ object Settings : SingletonHolder<SharedPreferences, Context>({ init(it.applicat
 
     fun Context.isPinCodeSet() = getInstance(this).getString(KEY_SAFE_MODE_PIN, "")?.isNotBlank() == true
 
+    /**
+     * MX: when to keep the system status bar visible during video playback.
+     * Stored by a ListPreference, hence the string -> int conversion.
+     */
+    val Context.playbackStatusBarMode: Int
+        get() = getInstance(this).getString(PLAYBACK_STATUS_BAR, "0")?.toIntOrNull() ?: 0
+
+    /**
+     * MX: whether the unlocked player orientation follows the system rotation lock.
+     * true  -> respect the system: auto-rotate on means sensor, locked portrait means portrait
+     * false -> legacy VLC behaviour, always follow the device sensor
+     * Stored by a ListPreference, hence the string comparison.
+     */
+    val Context.autoRotateFollowsSystem: Boolean
+        get() = getInstance(this).getString(AUTO_ROTATE_MODE, "system") != "sensor"
+
+
 
     /**
      * Trigger the [audioControlsChangeListener] to update the UI
@@ -221,6 +238,7 @@ const val PLAYLIST_MODE_VIDEO = "playlist_mode_video"
 const val PLAYLIST_MODE_AUDIO = "playlist_mode_audio"
 
 const val SCREEN_ORIENTATION = "screen_orientation"
+const val AUTO_ROTATE_MODE = "auto_rotate_mode"
 const val VIDEO_RESUME_TIME = "VideoResumeTime"
 const val VIDEO_RESUME_URI = "VideoResumeUri"
 const val ENABLE_SEEK_BUTTONS = "enable_seek_buttons"
@@ -249,6 +267,12 @@ const val SAVE_BRIGHTNESS = "save_brightness"
 const val BRIGHTNESS_VALUE = "brightness_value"
 const val POPUP_KEEPSCREEN = "popup_keepscreen"
 const val POPUP_FORCE_LEGACY = "popup_force_legacy"
+
+/**
+ * When to keep the system status bar (Wi-Fi, battery, clock…) visible while playing a video.
+ * 0 = never (immersive), 1 = only while the MX controls are shown, 2 = always.
+ */
+const val PLAYBACK_STATUS_BAR = "playback_status_bar"
 const val SHOW_ORIENTATION_BUTTON = "show_orientation_button"
 const val RESTORE_BACKGROUND_VIDEO = "restore_background_video"
 const val LOCK_USE_SENSOR = "lock_use_sensor"

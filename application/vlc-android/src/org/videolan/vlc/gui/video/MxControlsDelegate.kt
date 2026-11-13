@@ -34,6 +34,8 @@ import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.tools.Settings
+import org.videolan.tools.Settings.autoRotateFollowsSystem
+import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.dialogs.JumpToTimeDialog
 import kotlin.math.abs
@@ -436,12 +438,16 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         updateProgress()
         // First show: the title bar was GONE, so its height is only known after this pass.
         root.post { layoutTopActions() }
+        // MX: the status bar (Wi-Fi / battery / clock) can follow the chrome, see PLAYBACK_STATUS_BAR.
+        if (statusBarMode() >= 1) player.applyPlaybackStatusBar(true)
         val delay = Settings.videoHudDelay * 1000L
         if (delay > 0L) handler.postDelayed(hideRunnable, delay)
     }
 
     fun hide(immediate: Boolean = false) {
         handler.removeCallbacks(hideRunnable)
+        // MX: mode 0 hides it together with the chrome, mode 2 keeps it up during playback.
+        if (statusBarMode() < 2) player.applyPlaybackStatusBar(false)
         bars.forEach { bar ->
             if (immediate) {
                 bar.alpha = 0f
@@ -455,6 +461,9 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     fun isVisible() = topBar.visibility == View.VISIBLE
+
+    /** 0 = status bar never shown, 1 = only with the chrome, 2 = always during playback. */
+    private fun statusBarMode() = player.playbackStatusBarMode
 
     fun toggle() {
         if (isVisible()) hide() else show()
@@ -587,7 +596,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
         val labels = arrayOf(
-                player.getString(R.string.mx_rotation_auto),
+                player.getString(if (player.autoRotateFollowsSystem) R.string.mx_rotation_auto_system
+                                 else R.string.mx_rotation_auto_device),
                 player.getString(R.string.mx_rotation_portrait),
                 player.getString(R.string.mx_rotation_landscape))
         val checked = if (!player.orientationMode.locked) 0

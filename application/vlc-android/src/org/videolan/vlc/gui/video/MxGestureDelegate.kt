@@ -125,6 +125,12 @@ class MxGestureDelegate(
     private var allowPinchZoom = true
     private var allowLockGesture = true
 
+    /**
+     * Whether the orientation was already pinned before the screen lock was engaged, so unlocking
+     * only releases the pin we added ourselves.
+     */
+    private var orientationLockedBeforeLock = false
+
     private var startX = 0f
     private var startY = 0f
     private var startTimePos = 0L
@@ -245,6 +251,8 @@ class MxGestureDelegate(
         controls.setMxEnabled(enabled)
         if (enabled) controls.show() else {
             hidePanel()
+            // Turning MX gestures off must not leave the orientation pinned by the lock behind.
+            if (player.isLocked) restoreOrientationAfterLock()
             player.isLocked = false
         }
     }
@@ -497,7 +505,18 @@ class MxGestureDelegate(
         }
     }
 
+    /**
+     * Lock or unlock the player. Locking also freezes the orientation the player has right now:
+     * a portrait picture stays portrait even when the device is turned, and the pin is released
+     * again on unlock (unless the user had pinned the orientation themselves beforehand).
+     */
     fun setLocked(locked: Boolean) {
+        if (locked) {
+            orientationLockedBeforeLock = player.orientationMode.locked
+            if (!player.orientationMode.locked) player.toggleOrientationLock()
+        } else {
+            restoreOrientationAfterLock()
+        }
         player.isLocked = locked
         if (locked) {
             controls.hide(true)
@@ -508,6 +527,11 @@ class MxGestureDelegate(
             controls.show()
         }
         hidePanelDelayed()
+    }
+
+    /** Release the orientation pin we added on lock, unless it was already pinned before. */
+    private fun restoreOrientationAfterLock() {
+        if (player.orientationMode.locked && !orientationLockedBeforeLock) player.toggleOrientationLock()
     }
 
     /**

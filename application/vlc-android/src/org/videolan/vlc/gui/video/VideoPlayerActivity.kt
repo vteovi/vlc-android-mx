@@ -164,6 +164,8 @@ import org.videolan.tools.SAVE_BRIGHTNESS
 import org.videolan.tools.SCREENSHOT_MODE
 import org.videolan.tools.SCREEN_ORIENTATION
 import org.videolan.tools.Settings
+import org.videolan.tools.Settings.autoRotateFollowsSystem
+import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.tools.VIDEO_PAUSED
 import org.videolan.tools.VIDEO_RATIO
 import org.videolan.tools.VIDEO_RESUME_TIME
@@ -586,6 +588,8 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         /* Loading view */
         loadingImageView = findViewById(R.id.player_overlay_loading)
         overlayDelegate.dimStatusBar(true)
+        // MX: the "always" status bar mode has to win over the immersive default above.
+        if (this.playbackStatusBarMode == 2) applyPlaybackStatusBar(true)
         handler.sendEmptyMessageDelayed(LOADING_ANIMATION, LOADING_ANIMATION_DELAY.toLong())
 
         switchingView = false
@@ -767,7 +771,14 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         overlayDelegate.setListeners(true)
 
         if (isLocked && !orientationMode.locked) requestedOrientation = orientationMode.orientation
+        // MX: switching the auto-rotate mode in the settings has to apply without reopening the video.
+        if (!isLocked && !orientationMode.locked) {
+            val autoOrientation = getScreenOrientation(orientationMode)
+            if (autoOrientation != requestedOrientation) requestedOrientation = autoOrientation
+        }
         overlayDelegate.updateOrientationIcon()
+        // MX: the status bar setting may have changed while the settings screen was on top.
+        if (::mxGestureDelegate.isInitialized) refreshPlaybackStatusBar()
         arrayOf(FADE_OUT_VOLUME_INFO, FADE_OUT_BRIGHTNESS_INFO, FADE_OUT, FADE_OUT_INFO, FADE_OUT_SCREENSHOT).forEach {
             handler.removeMessages(it)
             handler.sendEmptyMessage(it)
@@ -929,6 +940,42 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         if (hasFocus)
             WindowCompat.getInsetsController(window, window.decorView).systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         super.onWindowFocusChanged(hasFocus)
+    }
+
+    /**
+     * MX: show or hide the system status bar (Wi-Fi, battery, clock…) above the video.
+     * The navigation bar always stays hidden so the picture keeps the whole screen.
+     */
+    fun applyPlaybackStatusBar(visible: Boolean) {
+        if (isInPictureInPictureMode) return
+        val decor = window?.decorView ?: return
+        if (visible) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            decor.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LOW_PROFILE or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            var flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LOW_PROFILE or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+            if (VlcMigrationHelper.isKitKatOrLater) flags = flags or View.SYSTEM_UI_FLAG_IMMERSIVE
+            decor.systemUiVisibility = flags
+        }
+    }
+
+    /** MX: re-apply the status bar policy, used after the related setting was changed. */
+    fun refreshPlaybackStatusBar() {
+        when (this.playbackStatusBarMode) {
+            2 -> applyPlaybackStatusBar(true)
+            1 -> applyPlaybackStatusBar(::mxGestureDelegate.isInitialized && mxGestureDelegate.isControlsVisible())
+            else -> applyPlaybackStatusBar(false)
+        }
     }
 
     private fun simulateKeyPress(context: Context, key: Int) {
@@ -2373,7 +2420,11 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
     fun getScreenOrientation(mode: PlayerOrientationMode): Int {
         return if (!mode.locked) {
             if (VlcMigrationHelper.isJellyBeanMR2OrLater)
-                ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                // MX: an unlocked player should not fight the system rotation lock.
+                // FULL_USER follows the user preference (portrait lock stays portrait, auto-rotate
+                // lets the sensor drive it), FULL_SENSOR is the legacy "ignore the lock" behaviour.
+                if (this.autoRotateFollowsSystem) ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                else ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             else
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR
         } else {

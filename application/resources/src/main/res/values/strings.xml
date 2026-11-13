@@ -372,6 +372,10 @@
     <string name="screen_orientation_landscape_reverse">Landscape reverse</string>
     <string name="screen_orientation_landscape_sensor">Landscape (sensor)</string>
     <string name="screen_orientation_last_locked">Last locked orientation</string>
+    <string name="auto_rotate_mode_title">Automatic rotation</string>
+    <string name="auto_rotate_mode_summary">Which source drives the orientation when the video screen is not locked</string>
+    <string name="auto_rotate_mode_system">Follow system rotation lock</string>
+    <string name="auto_rotate_mode_sensor">Always follow the device sensor</string>
     <string name="enable_black_theme">Black theme</string>
     <string name="dark_theme">Dark theme</string>
     <string name="theme_auto">Auto theme</string>
@@ -932,6 +936,11 @@
     <string name="misc">Miscellaneous</string>
     <string name="popup_force_legacy_title">Use custom Picture-in-Picture popup</string>
     <string name="popup_force_legacy_summary">Use custom Picture-in-Picture resizable popup</string>
+    <string name="playback_status_bar_title">System status bar while playing</string>
+    <string name="playback_status_bar_summary">Keep Wi-Fi, battery and clock visible over the video. The navigation bar stays hidden.</string>
+    <string name="playback_status_bar_never">Never (full immersive)</string>
+    <string name="playback_status_bar_with_controls">Only with the controls</string>
+    <string name="playback_status_bar_always">Always</string>
     <string name="restore_background_video_title">Restore video from background</string>
     <string name="restore_background_video_summary">Restore video from background when reopening VLC for Android</string>
     <string name="device_default">Device default</string>
@@ -1517,7 +1526,8 @@
     <string name="mx_no_previous">Already at the first item</string>
     <string name="mx_no_next">Already at the last item</string>
     <string name="mx_orientation_menu">Screen orientation</string>
-    <string name="mx_rotation_auto">Auto (follow device)</string>
+    <string name="mx_rotation_auto_system">Auto (follow system)</string>
+    <string name="mx_rotation_auto_device">Auto (follow device)</string>
     <string name="mx_rotation_reverse_portrait">Reverse portrait</string>
     <string name="mx_rotation_reverse_landscape">Reverse landscape</string>
     <string name="mx_shuffle">Shuffle</string>
