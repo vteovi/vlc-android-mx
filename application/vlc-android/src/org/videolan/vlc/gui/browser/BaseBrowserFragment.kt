@@ -184,6 +184,11 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
             manageDisplay()
         }
     protected lateinit var adapter: BaseBrowserAdapter
+
+    /** Lets subclasses check the lateinit state, the backing field is not accessible from them. */
+    protected val isAdapterInitialized: Boolean
+        get() = this::adapter.isInitialized
+
     protected abstract val categoryTitle: String
 
     protected lateinit var binding: DirectoryBrowserBinding

@@ -152,7 +152,7 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     private fun updateSelectionMenu(menu: Menu) {
         val selectAll = menu.findItem(R.id.ml_menu_select_all) ?: return
         val invert = menu.findItem(R.id.ml_menu_invert_selection)
-        val hasItems = ::adapter.isInitialized && adapter.itemCount > 0 && (activity as? SecondaryActivity)?.isOnboarding != true
+        val hasItems = isAdapterInitialized && adapter.itemCount > 0 && (activity as? SecondaryActivity)?.isOnboarding != true
         selectAll.isVisible = hasItems
         invert?.isVisible = hasItems
         if (!hasItems) return
@@ -160,7 +160,7 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val storageAdapter = if (::adapter.isInitialized) adapter as? StorageBrowserAdapter else null
+        val storageAdapter = if (isAdapterInitialized) adapter as? StorageBrowserAdapter else null
         when (item.itemId) {
             R.id.ml_menu_custom_dir -> {
                 showAddDirectoryDialog()
