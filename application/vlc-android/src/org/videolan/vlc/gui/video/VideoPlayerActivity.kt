@@ -165,7 +165,6 @@ import org.videolan.tools.SCREENSHOT_MODE
 import org.videolan.tools.SCREEN_ORIENTATION
 import org.videolan.tools.Settings
 import org.videolan.tools.Settings.autoRotateFollowsSystem
-import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.tools.VIDEO_PAUSED
 import org.videolan.tools.VIDEO_RATIO
 import org.videolan.tools.VIDEO_RESUME_TIME
@@ -588,8 +587,8 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         /* Loading view */
         loadingImageView = findViewById(R.id.player_overlay_loading)
         overlayDelegate.dimStatusBar(true)
-        // MX: the "always" status bar mode has to win over the immersive default above.
-        if (this.playbackStatusBarMode == 2) applyPlaybackStatusBar(true)
+        // MX: the status bar (Wi-Fi / battery / clock) is always part of the playback screen now.
+        applyPlaybackStatusBar(true)
         handler.sendEmptyMessageDelayed(LOADING_ANIMATION, LOADING_ANIMATION_DELAY.toLong())
 
         switchingView = false
@@ -777,8 +776,8 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             if (autoOrientation != requestedOrientation) requestedOrientation = autoOrientation
         }
         overlayDelegate.updateOrientationIcon()
-        // MX: the status bar setting may have changed while the settings screen was on top.
-        if (::mxGestureDelegate.isInitialized) refreshPlaybackStatusBar()
+        // MX: something (immersive mode, PiP, the stock overlay) may have hidden the status bar.
+        applyPlaybackStatusBar(!isLocked)
         arrayOf(FADE_OUT_VOLUME_INFO, FADE_OUT_BRIGHTNESS_INFO, FADE_OUT, FADE_OUT_INFO, FADE_OUT_SCREENSHOT).forEach {
             handler.removeMessages(it)
             handler.sendEmptyMessage(it)
@@ -950,11 +949,12 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         if (isInPictureInPictureMode) return
         val decor = window?.decorView ?: return
         if (visible) {
+            // Draw edge to edge, then let the status bar float over the picture: the MX top
+            // gradient reaches the very top of the screen so the icons stay readable.
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             decor.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LOW_PROFILE or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
         } else {
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
@@ -970,15 +970,6 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         // The MX HUD is laid out as a sibling of the stock overlay, so it has to be told to make
         // room for the status bar itself (see MxControlsDelegate.setStatusBarShown).
         if (::mxGestureDelegate.isInitialized) mxGestureDelegate.setStatusBarShown(visible)
-    }
-
-    /** MX: re-apply the status bar policy, used after the related setting was changed. */
-    fun refreshPlaybackStatusBar() {
-        when (this.playbackStatusBarMode) {
-            2 -> applyPlaybackStatusBar(true)
-            1 -> applyPlaybackStatusBar(::mxGestureDelegate.isInitialized && mxGestureDelegate.isControlsVisible())
-            else -> applyPlaybackStatusBar(false)
-        }
     }
 
     private fun simulateKeyPress(context: Context, key: Int) {

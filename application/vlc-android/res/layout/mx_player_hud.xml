@@ -5,13 +5,26 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+    <!--
+     Single top scrim, like the stock player: it starts at the very top of the window so the
+     system status bar icons always sit on the gradient, and it fades out before the picture.
+     It stays up while the status bar is visible, even when the controls are gone.
+    -->
+    <View
+            android:id="@+id/mx_top_gradient"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_gravity="top"
+            android:background="@drawable/gradient_title_player"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+
     <LinearLayout
             android:id="@+id/mx_top_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top"
             android:alpha="0"
-            android:background="@drawable/gradient_title_player"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingLeft="12dp"

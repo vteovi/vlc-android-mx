@@ -23,9 +23,7 @@ import android.os.Handler
 import android.os.Looper
 import android.support.v4.media.session.PlaybackStateCompat
 import android.text.InputType
-import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.SeekBar
@@ -40,7 +38,6 @@ import org.videolan.libvlc.MediaPlayer
 import org.videolan.tools.AUTO_ROTATE_MODE
 import org.videolan.tools.Settings
 import org.videolan.tools.Settings.autoRotateFollowsSystem
-import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.tools.putSingle
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.dialogs.JumpToTimeDialog
@@ -88,6 +85,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val handler = Handler(Looper.getMainLooper())
     private val root: View = player.findViewById<ViewStubCompat>(R.id.mx_player_hud_stub).inflate()
 
+    private val topGradient: View = root.findViewById(R.id.mx_top_gradient)
     private val topBar: View = root.findViewById(R.id.mx_top_bar)
     private val topActions: View = root.findViewById(R.id.mx_top_actions)
     private val bottomBar: View = root.findViewById(R.id.mx_bottom_bar)
@@ -106,17 +104,11 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val forwardLabel: TextView = root.findViewById(R.id.mx_forward_label)
 
     private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, topActions, bottomBar) }
-    /**
-     * Dark strip behind the status bar: without it the white clock / battery icons sit directly on
-     * the picture and become unreadable on bright scenes.
-     */
-    private val statusScrim: View = View(player).apply {
-        setBackgroundColor(0x66000000)
-        visibility = View.GONE
-    }
+    /** Padding the layout gives the title bar; the status bar inset is added on top of it. */
+    private var topBarBasePaddingTop = 0
     private var mxEnabled = true
     private var tracking = false
-    /** True while the system status bar is drawn over the player (see PLAYBACK_STATUS_BAR). */
+    /** True while the system status bar is drawn over the player. */
     private var statusBarShown = false
     /** Last reported status bar height, in pixels; 0 until the insets are dispatched. */
     private var statusBarInset = 0
@@ -140,6 +132,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         seekBar.max = 1000
         titleView.text = mediaTitle()
         jumpDelay = Settings.videoJumpDelay
+        topBarBasePaddingTop = topBar.paddingTop
         refreshJumpLabels()
         bindButtons()
         root.postDelayed(ticker, 500L)
@@ -152,21 +145,19 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         // that fitsSystemWindows gives the stock overlay: track the status bar height ourselves.
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-            if (top != statusBarInset) {
+            if (top > 0 && top != statusBarInset) {
                 statusBarInset = top
                 applyStatusBarInset()
             }
             insets
         }
         root.requestApplyInsets()
-        (root as? FrameLayout)?.addView(statusScrim, 0,
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP))
     }
 
     /**
-     * Pushes the whole HUD below the system status bar while it is visible, so the title bar and
-     * the clock / battery icons never overlap. The [MxControlsDelegate] keeps the inset itself
-     * because [VideoPlayerActivity] only tells it whether the bar is up.
+     * Pushes the title bar below the system status bar while it is visible, so the title and the
+     * clock / battery icons never overlap. Only the padding moves: the top gradient is a sibling
+     * anchored on the window top, so it still starts at y = 0 like the stock player skin.
      */
     fun setStatusBarShown(shown: Boolean) {
         if (statusBarShown == shown) return
@@ -175,21 +166,27 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     private fun applyStatusBarInset() {
-        val target = if (statusBarShown) statusBarInset else 0
-        if (root.paddingTop != target) {
-            root.setPadding(root.paddingLeft, target, root.paddingRight, root.paddingBottom)
-            // The action row is anchored on the title bar, so re-fit it after the shift.
+        // The gradient lives as long as the status bar: the icons must stay readable over the
+        // picture even when the controls are hidden.
+        topGradient.visibility = if (statusBarShown) View.VISIBLE else View.GONE
+        val target = topBarBasePaddingTop + if (statusBarShown) statusBarInset else 0
+        if (topBar.paddingTop != target) {
+            topBar.setPadding(topBar.paddingLeft, target, topBar.paddingRight, topBar.paddingBottom)
+            // The title bar grows, so the action row anchored under it has to move too.
             root.post { layoutTopActions() }
         }
-        val params = statusScrim.layoutParams as? FrameLayout.LayoutParams ?: return
-        if (params.height != target) {
-            params.height = target
-            statusScrim.layoutParams = params
+        // Keep the gradient taller than the chrome it has to darken, so it always reaches the
+        // status bar icons on devices with a tall inset.
+        val gradientHeight = maxOf(dpToPx(150), topBar.height + statusBarInset)
+        val params = topGradient.layoutParams
+        if (params != null && params.height != gradientHeight) {
+            params.height = gradientHeight
+            topGradient.layoutParams = params
         }
-        statusScrim.visibility = if (target > 0) View.VISIBLE else View.GONE
-        // The root padding pushes every child down; pull the strip back over the status bar.
-        statusScrim.translationY = -root.paddingTop.toFloat()
     }
+
+    private fun dpToPx(dp: Int): Int =
+            (dp * player.resources.displayMetrics.density).toInt()
 
     /**
      * Anchors the quick action row right under the title bar. Every MX button lives in that one
@@ -503,16 +500,15 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         updateProgress()
         // First show: the title bar was GONE, so its height is only known after this pass.
         root.post { layoutTopActions() }
-        // MX: the status bar (Wi-Fi / battery / clock) can follow the chrome, see PLAYBACK_STATUS_BAR.
-        if (statusBarMode() >= 1) player.applyPlaybackStatusBar(true)
+        // MX: the status bar (Wi-Fi / battery / clock) is part of the playback screen, the top
+        // gradient above keeps its icons readable over bright scenes.
+        player.applyPlaybackStatusBar(true)
         val delay = Settings.videoHudDelay * 1000L
         if (delay > 0L) handler.postDelayed(hideRunnable, delay)
     }
 
     fun hide(immediate: Boolean = false) {
         handler.removeCallbacks(hideRunnable)
-        // MX: mode 0 hides it together with the chrome, mode 2 keeps it up during playback.
-        if (statusBarMode() < 2) player.applyPlaybackStatusBar(false)
         bars.forEach { bar ->
             if (immediate) {
                 bar.alpha = 0f
@@ -526,9 +522,6 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     fun isVisible() = topBar.visibility == View.VISIBLE
-
-    /** 0 = status bar never shown, 1 = only with the chrome, 2 = always during playback. */
-    private fun statusBarMode() = player.playbackStatusBarMode
 
     fun toggle() {
         if (isVisible()) hide() else show()

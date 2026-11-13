@@ -739,15 +739,4 @@
         <item>off</item>
     </string-array>
 
-    <string-array name="playback_status_bar">
-        <item>@string/playback_status_bar_never</item>
-        <item>@string/playback_status_bar_with_controls</item>
-        <item>@string/playback_status_bar_always</item>
-    </string-array>
-    <string-array name="playback_status_bar_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </string-array>
-
 </resources>

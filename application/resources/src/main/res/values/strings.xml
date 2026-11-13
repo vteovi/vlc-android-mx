@@ -932,11 +932,6 @@
     <string name="misc">Miscellaneous</string>
     <string name="popup_force_legacy_title">Use custom Picture-in-Picture popup</string>
     <string name="popup_force_legacy_summary">Use custom Picture-in-Picture resizable popup</string>
-    <string name="playback_status_bar_title">System status bar while playing</string>
-    <string name="playback_status_bar_summary">Keep Wi-Fi, battery and clock visible over the video. The navigation bar stays hidden.</string>
-    <string name="playback_status_bar_never">Never (full immersive)</string>
-    <string name="playback_status_bar_with_controls">Only with the controls</string>
-    <string name="playback_status_bar_always">Always</string>
     <string name="restore_background_video_title">Restore video from background</string>
     <string name="restore_background_video_summary">Restore video from background when reopening VLC for Android</string>
     <string name="device_default">Device default</string>
