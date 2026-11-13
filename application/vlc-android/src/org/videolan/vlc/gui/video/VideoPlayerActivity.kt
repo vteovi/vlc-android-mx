@@ -587,8 +587,6 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         /* Loading view */
         loadingImageView = findViewById(R.id.player_overlay_loading)
         overlayDelegate.dimStatusBar(true)
-        // MX: the status bar (Wi-Fi / battery / clock) is always part of the playback screen now.
-        applyPlaybackStatusBar(true)
         handler.sendEmptyMessageDelayed(LOADING_ANIMATION, LOADING_ANIMATION_DELAY.toLong())
 
         switchingView = false
@@ -776,8 +774,8 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             if (autoOrientation != requestedOrientation) requestedOrientation = autoOrientation
         }
         overlayDelegate.updateOrientationIcon()
-        // MX: something (immersive mode, PiP, the stock overlay) may have hidden the status bar.
-        applyPlaybackStatusBar(!isLocked)
+        // MX: the status bar follows the chrome, so restore whatever the HUD currently shows.
+        applyPlaybackStatusBar(!isLocked && isMxChromeVisible())
         arrayOf(FADE_OUT_VOLUME_INFO, FADE_OUT_BRIGHTNESS_INFO, FADE_OUT, FADE_OUT_INFO, FADE_OUT_SCREENSHOT).forEach {
             handler.removeMessages(it)
             handler.sendEmptyMessage(it)
@@ -971,6 +969,12 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         // room for the status bar itself (see MxControlsDelegate.setStatusBarShown).
         if (::mxGestureDelegate.isInitialized) mxGestureDelegate.setStatusBarShown(visible)
     }
+
+    /**
+     * MX: true while the MX chrome is on screen — the status bar and its top gradient follow it.
+     */
+    fun isMxChromeVisible(): Boolean =
+            ::mxGestureDelegate.isInitialized && mxGestureDelegate.isControlsVisible()
 
     private fun simulateKeyPress(context: Context, key: Int) {
         val a = context as Activity

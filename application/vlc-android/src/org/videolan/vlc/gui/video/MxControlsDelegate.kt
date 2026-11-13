@@ -103,7 +103,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val rewindLabel: TextView = root.findViewById(R.id.mx_rewind_label)
     private val forwardLabel: TextView = root.findViewById(R.id.mx_forward_label)
 
-    private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, topActions, bottomBar) }
+    private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topGradient, topBar, topActions, bottomBar) }
     /** Padding the layout gives the title bar; the status bar inset is added on top of it. */
     private var topBarBasePaddingTop = 0
     private var mxEnabled = true
@@ -120,6 +120,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private var ratioIndex = 0
 
     private val hideRunnable = Runnable { hide() }
+    /** Hides the status bar once the chrome finished fading out. */
+    private val statusBarHideRunnable = Runnable { player.applyPlaybackStatusBar(false) }
     private val ticker = object : Runnable {
         override fun run() {
             if (root.windowToken == null) return
@@ -166,9 +168,6 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     private fun applyStatusBarInset() {
-        // The gradient lives as long as the status bar: the icons must stay readable over the
-        // picture even when the controls are hidden.
-        topGradient.visibility = if (statusBarShown) View.VISIBLE else View.GONE
         val target = topBarBasePaddingTop + if (statusBarShown) statusBarInset else 0
         if (topBar.paddingTop != target) {
             topBar.setPadding(topBar.paddingLeft, target, topBar.paddingRight, topBar.paddingBottom)
@@ -493,6 +492,11 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         // Guarded by isShowing so the overlay delegate is not touched before it is used.
         if (player.isShowing) player.overlayDelegate.dismissForMxMode()
         handler.removeCallbacks(hideRunnable)
+        // MX: the status bar (Wi-Fi / battery / clock) comes up with the chrome, and the top
+        // gradient above keeps its icons readable over bright scenes. Applied before the bars are
+        // made visible so the title does not jump once the status bar inset lands.
+        handler.removeCallbacks(statusBarHideRunnable)
+        player.applyPlaybackStatusBar(true)
         bars.forEach { bar ->
             bar.visibility = View.VISIBLE
             bar.animate().alpha(1f).setDuration(150L).start()
@@ -500,15 +504,13 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         updateProgress()
         // First show: the title bar was GONE, so its height is only known after this pass.
         root.post { layoutTopActions() }
-        // MX: the status bar (Wi-Fi / battery / clock) is part of the playback screen, the top
-        // gradient above keeps its icons readable over bright scenes.
-        player.applyPlaybackStatusBar(true)
         val delay = Settings.videoHudDelay * 1000L
         if (delay > 0L) handler.postDelayed(hideRunnable, delay)
     }
 
     fun hide(immediate: Boolean = false) {
         handler.removeCallbacks(hideRunnable)
+        handler.removeCallbacks(statusBarHideRunnable)
         bars.forEach { bar ->
             if (immediate) {
                 bar.alpha = 0f
@@ -519,6 +521,10 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
                 }.start()
             }
         }
+        // MX: the status bar goes away with the chrome. A short delay keeps the title from
+        // jumping up while the bars are still fading out.
+        if (immediate) player.applyPlaybackStatusBar(false)
+        else handler.postDelayed(statusBarHideRunnable, 160L)
     }
 
     fun isVisible() = topBar.visibility == View.VISIBLE

@@ -410,12 +410,12 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
     fun dimStatusBar(dim: Boolean) {
         if (player.isNavMenu) return
 
-        // MX: the HUD layer owns the status bar (it is always shown while playing). Forcing
+        // MX: the HUD layer owns the status bar and keeps it in sync with the chrome. Forcing
         // immersive mode here would fight it, leaving the HUD with a blank gap.
         if (player.isMxControlsEnabled()) {
             playerUiContainer.setPadding(0, 0, 0, 0)
             playerUiContainer.fitsSystemWindows = !player.isLocked
-            player.applyPlaybackStatusBar(!player.isLocked)
+            player.applyPlaybackStatusBar(!player.isLocked && player.isMxChromeVisible())
             return
         }
 
