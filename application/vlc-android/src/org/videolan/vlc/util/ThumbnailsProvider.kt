@@ -95,12 +95,12 @@ object ThumbnailsProvider {
         }
         if (bitmap != null) {
             BitmapCache.addBitmapToMemCache(getMediaCacheKey(true, media, width.toString()), bitmap)
-            if (hasCache) {
+            // Media that isn't in the library (id 0, like the instant list) has nothing to write
+            // to: keeping the bitmap in the memory cache is enough.
+            if (hasCache && media.id > 0) {
                 media.setThumbnail(thumbPath)
-                if (media.id > 0) {
-                    BitmapUtil.saveOnDisk(bitmap!!, thumbPath)
-                    media.artworkURL = thumbPath
-                }
+                BitmapUtil.saveOnDisk(bitmap!!, thumbPath)
+                media.artworkURL = thumbPath
             }
         } else if (media.id != 0L) {
             media.requestThumbnail(width, 0.4f)

@@ -28,6 +28,7 @@ import org.videolan.medialibrary.interfaces.media.MediaWrapper
 import org.videolan.medialibrary.interfaces.media.VideoGroup
 import org.videolan.tools.Settings
 import org.videolan.vlc.media.getAll
+import org.videolan.vlc.util.FastVideoIndex
 import org.videolan.vlc.viewmodels.SortableModel
 
 class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Context, model: SortableModel) : MedialibraryProvider<MediaWrapper>(context, model){
@@ -38,7 +39,14 @@ class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Cont
     override fun canSortByInsertionDate() = group == null
     override val isVideoPermDependant = true
 
-    override fun getTotalCount() = if (model.filterQuery == null) when {
+    /**
+     * MX-style shortcut: while the media library is still opening every file one by one, list the
+     * videos straight from the system index instead. Only valid for the flat video list: the folder
+     * and group views need the library itself.
+     */
+    private fun useFastScan() = folder === null && group === null && FastVideoIndex.isWanted()
+
+    override fun getTotalCount() = if (useFastScan()) FastVideoIndex.count(context, model.filterQuery) else if (model.filterQuery == null) when {
         folder !== null -> folder.mediaCount(Folder.TYPE_FOLDER_VIDEO)
         group !== null -> group.mediaCount()
         else -> medialibrary.videoCount
@@ -49,6 +57,11 @@ class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Cont
     }
 
     override fun getPage(loadSize: Int, startposition: Int): Array<MediaWrapper> {
+        if (useFastScan()) {
+            val fast = FastVideoIndex.page(context, sort, desc, model.filterQuery, loadSize, startposition)
+            model.viewModelScope.launch { completeHeaders(fast, startposition) }
+            return fast
+        }
         val list = if (model.filterQuery == null) when {
             folder !== null -> folder.media(Folder.TYPE_FOLDER_VIDEO, sort, desc, Settings.includeMissing, onlyFavorites, loadSize, startposition)
             group !== null -> group.media(sort, desc, Settings.includeMissing, onlyFavorites, loadSize, startposition)
@@ -62,7 +75,9 @@ class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Cont
         return list
     }
 
-    override fun getAll(): Array<MediaWrapper> = if (model.filterQuery == null) when {
+    override fun getAll(): Array<MediaWrapper> = if (useFastScan()) {
+        FastVideoIndex.all(context, sort, desc, model.filterQuery)
+    } else if (model.filterQuery == null) when {
         folder !== null -> folder.getAll(Folder.TYPE_FOLDER_VIDEO, sort, desc, Settings.includeMissing).toTypedArray()
         group !== null -> group.getAll(sort, desc, Settings.includeMissing, onlyFavorites).toTypedArray()
         else -> medialibrary.getVideos(sort, desc, Settings.includeMissing, onlyFavorites)

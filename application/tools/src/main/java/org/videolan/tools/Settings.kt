@@ -31,6 +31,7 @@ object Settings : SingletonHolder<SharedPreferences, Context>({ init(it.applicat
     var audioShowTrackNumbers = MutableLiveData(false)
     var showHiddenFiles = false
     var showHiddenVideos = false
+    var fastVideoScan = true
     var showTrackNumber = true
     var tvFoldersFirst = true
     var incognitoMode = false
@@ -59,6 +60,7 @@ object Settings : SingletonHolder<SharedPreferences, Context>({ init(it.applicat
         audioShowTrackNumbers.postValue(prefs.getBoolean(KEY_AUDIO_SHOW_TRACK_NUMBERS, false))
         showHiddenFiles = prefs.getBoolean(BROWSER_SHOW_HIDDEN_FILES, !tvUI)
         showHiddenVideos = prefs.getBoolean(SHOW_HIDDEN_VIDEOS, false)
+        fastVideoScan = prefs.getBoolean(FAST_VIDEO_SCAN, true)
         showTrackNumber = prefs.getBoolean(ALBUMS_SHOW_TRACK_NUMBER, true)
         tvFoldersFirst = prefs.getBoolean(TV_FOLDERS_FIRST, true)
         incognitoMode = prefs.getBoolean(KEY_INCOGNITO, false)
@@ -369,6 +371,8 @@ const val KEY_INCLUDE_MISSING = "include_missing"
 //files
 const val BROWSER_SHOW_HIDDEN_FILES = "browser_show_hidden_files"
 const val SHOW_HIDDEN_VIDEOS = "show_hidden_videos"
+/** Read the video list from the system index instead of waiting for the media library scan. */
+const val FAST_VIDEO_SCAN = "fast_video_scan"
 const val BROWSER_SHOW_ONLY_MULTIMEDIA = "browser_show_only_multimedia"
 const val BROWSER_DISPLAY_IN_CARDS = "browser_display_in_cards"
 

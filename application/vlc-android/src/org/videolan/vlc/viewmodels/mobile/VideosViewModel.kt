@@ -26,6 +26,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.videolan.medialibrary.interfaces.media.Folder
@@ -43,6 +45,7 @@ import org.videolan.vlc.providers.medialibrary.FoldersProvider
 import org.videolan.vlc.providers.medialibrary.MedialibraryProvider
 import org.videolan.vlc.providers.medialibrary.VideoGroupsProvider
 import org.videolan.vlc.providers.medialibrary.VideosProvider
+import org.videolan.vlc.util.FastVideoIndex
 import org.videolan.vlc.viewmodels.MedialibraryViewModel
 
 class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Folder?, val group: VideoGroup?) : MedialibraryViewModel(context) {
@@ -72,6 +75,22 @@ class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Fol
         watchMedia()
         watchMediaGroups()
         watchFolders()
+        watchScanCompletion()
+    }
+
+    /**
+     * The system-index list is only a stopgap: once the media library finished its own scan, swap
+     * back to it so favourites, groups and resume points are the real ones.
+     */
+    private fun watchScanCompletion() = viewModelScope.launch {
+        while (isActive) {
+            delay(1500L)
+            if (!FastVideoIndex.serving) continue
+            if (FastVideoIndex.isWanted()) continue
+            FastVideoIndex.invalidate()
+            refresh()
+            return@launch
+        }
     }
 
     class Factory(val context: Context, private val groupingType: VideoGroupingType, val folder: Folder? = null, val group: VideoGroup? = null) : ViewModelProvider.NewInstanceFactory() {
