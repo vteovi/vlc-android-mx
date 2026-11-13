@@ -29,6 +29,7 @@ import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.medialibrary.media.MediaLibraryItem
 import org.videolan.medialibrary.media.Storage
 import org.videolan.resources.AndroidDevices
+import org.videolan.tools.Settings
 import org.videolan.tools.livedata.LiveDataset
 import org.videolan.vlc.R
 import org.videolan.vlc.repository.DirectoryRepository
@@ -37,8 +38,17 @@ import java.io.File
 
 class StorageProvider(context: Context, dataset: LiveDataset<MediaLibraryItem>, url: String?) : FileBrowserProvider(context, dataset, url, false, sort = Medialibrary.SORT_FILENAME, desc = false) {
 
-    // the ML doesn't index hidden files. no need to display them here
-    override fun getFlags(interact: Boolean) = if (interact) MediaBrowser.Flag.NoSlavesAutodetect else 0
+    /**
+     * The media library itself never indexes hidden folders, but this browser is also used by the
+     * "Media library folders" screen, where the user has to be able to reach a hidden folder to
+     * select it. So the hidden-files flag has to follow the display setting here too, instead of
+     * being dropped unconditionally.
+     */
+    override fun getFlags(interact: Boolean): Int {
+        var flags = if (interact) MediaBrowser.Flag.NoSlavesAutodetect else 0
+        if (Settings.showHiddenFiles) flags = flags or MediaBrowser.Flag.ShowHiddenFiles
+        return flags
+    }
 
     override suspend fun browseRootImpl() {
         val storages = DirectoryRepository.getInstance(context).getMediaDirectories()

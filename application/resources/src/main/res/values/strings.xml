@@ -564,7 +564,7 @@
     <string name="tv_show_hidden_files">Show hidden files</string>
     <string name="tv_show_hidden_files_summary">Show hidden files in the file browser</string>
     <string name="show_hidden_folders_title">Show hidden folders</string>
-    <string name="show_hidden_folders_summary">Show folders and files whose name starts with a dot in the browser. The media library does not index them</string>
+    <string name="show_hidden_folders_summary">Show folders and files whose name starts with a dot in the browser and in the media library folders screen</string>
     <string name="show_hidden_videos_title">Show videos in hidden folders</string>
     <string name="show_hidden_videos_summary">Add the videos stored in folders whose name starts with a dot to the media library, so they show up in the Video tab</string>
     <string name="hidden_videos_added">%1$d hidden folder(s) added to the media library, their videos appear in the Video tab once the scan is done</string>

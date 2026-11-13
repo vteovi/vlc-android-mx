@@ -536,7 +536,7 @@
     <string name="tv_show_hidden_files">显示隐藏文件</string>
     <string name="tv_show_hidden_files_summary">在文件浏览器中显示隐藏文件</string>
     <string name="show_hidden_folders_title">显示隐藏文件夹</string>
-    <string name="show_hidden_folders_summary">在浏览界面显示以点（.）开头的隐藏文件夹和文件。媒体库不会收录这些目录</string>
+    <string name="show_hidden_folders_summary">在浏览界面和「媒体库文件夹」中显示以点（.）开头的隐藏文件夹和文件</string>
     <string name="show_hidden_videos_title">显示隐藏文件夹中的视频</string>
     <string name="show_hidden_videos_summary">把以点（.）开头的隐藏文件夹加入媒体库，其中的视频会出现在「视频」页面</string>
     <string name="hidden_videos_added">已把 %1$d 个隐藏文件夹加入媒体库，扫描完成后视频会出现在「视频」页面</string>
