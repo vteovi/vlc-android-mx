@@ -197,6 +197,18 @@
             android:visible="false" />
 
     <item
+            android:id="@+id/ml_menu_select_all"
+            android:orderInCategory="3"
+            android:title="@string/mx_select_all"
+            android:visible="false" />
+
+    <item
+            android:id="@+id/ml_menu_invert_selection"
+            android:orderInCategory="3"
+            android:title="@string/mx_invert_selection"
+            android:visible="false" />
+
+    <item
             android:id="@+id/rename_group"
             android:icon="@drawable/ic_edit"
             android:orderInCategory="5"

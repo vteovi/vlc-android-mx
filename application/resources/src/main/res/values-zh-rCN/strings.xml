@@ -539,6 +539,11 @@
     <string name="show_hidden_folders_summary">在浏览界面和「媒体库文件夹」中显示以点（.）开头的隐藏文件夹和文件</string>
     <string name="show_hidden_videos_title">显示隐藏文件夹中的视频</string>
     <string name="show_hidden_videos_summary">把以点（.）开头的隐藏文件夹加入媒体库，其中的视频会出现在「视频」页面</string>
+    <string name="mx_select_all">全选</string>
+    <string name="mx_deselect_all">全不选</string>
+    <string name="mx_invert_selection">反选</string>
+    <string name="mx_folder_banned">「%1$s」已从媒体库移除</string>
+    <string name="mx_folder_unbanned">「%1$s」已重新加入媒体库</string>
     <string name="hidden_videos_added">已把 %1$d 个隐藏文件夹加入媒体库，扫描完成后视频会出现在「视频」页面</string>
     <string name="hidden_videos_removed">已从媒体库移除 %1$d 个隐藏文件夹</string>
     <string name="hidden_videos_none">没有找到包含视频的隐藏文件夹</string>

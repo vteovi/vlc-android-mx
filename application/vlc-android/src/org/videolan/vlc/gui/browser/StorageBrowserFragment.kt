@@ -42,6 +42,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.videolan.medialibrary.MLServiceLocator
 import org.videolan.medialibrary.Tools
 import org.videolan.medialibrary.interfaces.Medialibrary
@@ -53,6 +54,7 @@ import org.videolan.vlc.R
 import org.videolan.vlc.VlcMigrationHelper
 import org.videolan.vlc.databinding.BrowserItemBinding
 import org.videolan.vlc.gui.SecondaryActivity
+import org.videolan.vlc.gui.helpers.MedialibraryUtils
 import org.videolan.vlc.gui.helpers.ThreeStatesCheckbox
 import org.videolan.vlc.gui.helpers.UiTools
 import org.videolan.vlc.viewmodels.browser.TYPE_STORAGE
@@ -143,12 +145,37 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
         menu.findItem(R.id.ml_menu_custom_dir)?.isVisible = true
         menu.findItem(R.id.ml_menu_refresh)?.isVisible = false
         menu.findItem(R.id.ml_menu_add_playlist)?.isVisible = false
+        updateSelectionMenu(menu)
+    }
+
+    /** Shows "select all" / "deselect all" depending on the current selection, plus "invert". */
+    private fun updateSelectionMenu(menu: Menu) {
+        val selectAll = menu.findItem(R.id.ml_menu_select_all) ?: return
+        val invert = menu.findItem(R.id.ml_menu_invert_selection)
+        val hasItems = ::adapter.isInitialized && adapter.itemCount > 0 && (activity as? SecondaryActivity)?.isOnboarding != true
+        selectAll.isVisible = hasItems
+        invert?.isVisible = hasItems
+        if (!hasItems) return
+        selectAll.setTitle(if ((adapter as? StorageBrowserAdapter)?.allSelected() == true) R.string.mx_deselect_all else R.string.mx_select_all)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.ml_menu_custom_dir) {
-            showAddDirectoryDialog()
-            return true
+        val storageAdapter = if (::adapter.isInitialized) adapter as? StorageBrowserAdapter else null
+        when (item.itemId) {
+            R.id.ml_menu_custom_dir -> {
+                showAddDirectoryDialog()
+                return true
+            }
+            R.id.ml_menu_select_all -> {
+                storageAdapter?.setAllChecked(storageAdapter.allSelected().not())
+                requireActivity().invalidateOptionsMenu()
+                return true
+            }
+            R.id.ml_menu_invert_selection -> {
+                storageAdapter?.invertSelection()
+                requireActivity().invalidateOptionsMenu()
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
     }
@@ -193,10 +220,17 @@ class StorageBrowserFragment : FileBrowserFragment(), BrowserContainer<MediaLibr
     }
 
     override fun onLongClick(v: View, position: Int, item: MediaLibraryItem): Boolean {
-        (item as Storage).uri.path?.let { path ->
-            lifecycleScope.launch(Dispatchers.IO) {
+        val uri = (item as? Storage)?.uri ?: return false
+        val path = uri.path ?: return false
+        val title = item.title
+        lifecycleScope.launch {
+            // Banning is the only way to exclude one folder from an already scanned parent, so it
+            // stays on long press — with a feedback, it used to happen silently.
+            val banned = withContext(Dispatchers.IO) {
                 viewModel.toggleBanState(path)
+                MedialibraryUtils.isStrictlyBanned(path, Medialibrary.getInstance().bannedFolders().toList())
             }
+            if (isAdded) UiTools.snacker(requireActivity(), getString(if (banned) R.string.mx_folder_banned else R.string.mx_folder_unbanned, title))
         }
         return true
     }

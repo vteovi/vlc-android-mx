@@ -46,6 +46,13 @@ import org.videolan.vlc.util.Permissions
 
 interface IStorageFragmentDelegate {
     fun checkBoxAction(v: View, mrl: String)
+
+    /** Adds or removes a media library root, without the permission prompt of a real tap. */
+    fun setFolderChecked(mrl: String, checked: Boolean)
+
+    /** Bans or unbans a folder: the way to unselect a folder covered by an already scanned parent. */
+    fun setFolderBanned(mrl: String, banned: Boolean)
+
     fun addRootsCallback()
     fun removeRootsCallback()
     val processingFolders: SimpleArrayMap<String, CheckBox>
@@ -99,19 +106,32 @@ class StorageFragmentDelegate : IStorageFragmentDelegate, RootsEventsCb {
                 MediaParsingService.preselectedStorages.removeAll { it.startsWith(path) }
             }
         } else {
-            if (checked) {
-                MedialibraryUtils.addDir(mrl, v.context.applicationContext)
-                val prefs = Settings.getInstance(v.context)
-                if (prefs.getInt(KEY_MEDIALIBRARY_SCAN, -1) != ML_SCAN_ON) prefs.putSingle(KEY_MEDIALIBRARY_SCAN, ML_SCAN_ON)
-            } else
-                MedialibraryUtils.removeDir(mrl)
+            setFolderChecked(mrl, checked)
             processEvent(v as CheckBox, mrl)
         }
+    }
+
+    override fun setFolderChecked(mrl: String, checked: Boolean) {
+        if (checked) {
+            if (mrl.contains("file://") && !canReadStorage(context)) return
+            MedialibraryUtils.addDir(mrl, context.applicationContext)
+            val prefs = Settings.getInstance(context)
+            if (prefs.getInt(KEY_MEDIALIBRARY_SCAN, -1) != ML_SCAN_ON) prefs.putSingle(KEY_MEDIALIBRARY_SCAN, ML_SCAN_ON)
+        } else MedialibraryUtils.removeDir(mrl)
+    }
+
+    override fun setFolderBanned(mrl: String, banned: Boolean) {
+        val ml = Medialibrary.getInstance()
+        if (banned) ml.banFolder(mrl) else ml.unbanFolder(mrl)
     }
 
     private fun processEvent(cbp: CheckBox, mrl: String) {
         cbp.isEnabled = false
         processingFolders.put(mrl, cbp)
+        // Never leave a checkbox disabled forever when the media library does not report back.
+        handler.postDelayed({
+            if (processingFolders.remove(mrl) != null) cbp.isEnabled = true
+        }, 4000)
     }
 
     override fun onRootBanned(entryPoint: String, success: Boolean) {

@@ -567,6 +567,11 @@
     <string name="show_hidden_folders_summary">Show folders and files whose name starts with a dot in the browser and in the media library folders screen</string>
     <string name="show_hidden_videos_title">Show videos in hidden folders</string>
     <string name="show_hidden_videos_summary">Add the videos stored in folders whose name starts with a dot to the media library, so they show up in the Video tab</string>
+    <string name="mx_select_all">Select all</string>
+    <string name="mx_deselect_all">Deselect all</string>
+    <string name="mx_invert_selection">Invert selection</string>
+    <string name="mx_folder_banned">%1$s removed from the media library</string>
+    <string name="mx_folder_unbanned">%1$s added back to the media library</string>
     <string name="hidden_videos_added">%1$d hidden folder(s) added to the media library, their videos appear in the Video tab once the scan is done</string>
     <string name="hidden_videos_removed">%1$d hidden folder(s) removed from the media library</string>
     <string name="hidden_videos_none">No hidden folder with videos found</string>

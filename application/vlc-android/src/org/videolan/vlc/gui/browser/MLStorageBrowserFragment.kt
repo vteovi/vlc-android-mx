@@ -192,12 +192,31 @@ class MLStorageBrowserFragment : BaseFragment(), IStorageFragmentDelegate by Sto
         menu.findItem(R.id.ml_menu_custom_dir)?.isVisible = !onboarding
         menu.findItem(R.id.ml_menu_refresh)?.isVisible = false
         menu.findItem(R.id.ml_menu_add_playlist)?.isVisible = false
+        val selectAll = menu.findItem(R.id.ml_menu_select_all)
+        val invert = menu.findItem(R.id.ml_menu_invert_selection)
+        val hasItems = ::storageBrowserAdapter.isInitialized && storageBrowserAdapter.itemCount > 0
+        selectAll?.isVisible = hasItems && !onboarding
+        invert?.isVisible = hasItems && !onboarding
+        if (hasItems) selectAll?.setTitle(if (storageBrowserAdapter.allSelected()) R.string.mx_deselect_all else R.string.mx_select_all)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.ml_menu_custom_dir) {
-            showAddDirectoryDialog()
-            return true
+        if (!::storageBrowserAdapter.isInitialized) return false
+        when (item.itemId) {
+            R.id.ml_menu_custom_dir -> {
+                showAddDirectoryDialog()
+                return true
+            }
+            R.id.ml_menu_select_all -> {
+                storageBrowserAdapter.setAllChecked(storageBrowserAdapter.allSelected().not())
+                requireActivity().invalidateOptionsMenu()
+                return true
+            }
+            R.id.ml_menu_invert_selection -> {
+                storageBrowserAdapter.invertSelection()
+                requireActivity().invalidateOptionsMenu()
+                return true
+            }
         }
         return false
     }

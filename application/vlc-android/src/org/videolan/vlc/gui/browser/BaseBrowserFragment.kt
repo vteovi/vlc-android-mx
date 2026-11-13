@@ -250,6 +250,9 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
         menu.findItem(R.id.ml_menu_sortby)?.isVisible = false
         menu.findItem(R.id.ml_menu_sortby_media_number)?.isVisible = false
         menu.findItem(R.id.ml_menu_add_playlist)?.isVisible = !isRootDirectory
+        // Only the storage folder picker (media library folders) offers these.
+        menu.findItem(R.id.ml_menu_select_all)?.isVisible = false
+        menu.findItem(R.id.ml_menu_invert_selection)?.isVisible = false
         addPlaylistFolderOnly = menu.findItem(R.id.folder_add_playlist)
         addPlaylistFolderOnly.isVisible = adapter.mediaCount > 0
 
