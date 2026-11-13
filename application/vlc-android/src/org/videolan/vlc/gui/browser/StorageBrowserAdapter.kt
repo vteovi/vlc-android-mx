@@ -300,13 +300,13 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
     }
 
     private fun toast(resId: Int, vararg args: Any) {
-        val context: Context? = try {
+        val activity = try {
             browserContainer.containerActivity()
         } catch (ignored: Exception) {
             null
         } ?: return
         try {
-            Toast.makeText(context, context.getString(resId, *args), Toast.LENGTH_SHORT).show()
+            Toast.makeText(activity, activity.getString(resId, *args), Toast.LENGTH_SHORT).show()
         } catch (ignored: Exception) {
         }
     }
