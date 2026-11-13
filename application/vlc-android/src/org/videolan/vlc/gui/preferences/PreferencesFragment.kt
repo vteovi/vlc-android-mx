@@ -54,6 +54,7 @@ import org.videolan.tools.Settings
 import org.videolan.tools.Settings.isPinCodeSet
 import org.videolan.tools.VIDEO_RESUME_PLAYBACK
 import org.videolan.vlc.R
+import org.videolan.vlc.util.FastVideoIndex
 import org.videolan.vlc.gui.EqualizerSettingsActivity
 import org.videolan.vlc.gui.PinCodeActivity
 import org.videolan.vlc.gui.PinCodeReason
@@ -226,7 +227,13 @@ class PreferencesFragment : BasePreferenceFragment(), SharedPreferences.OnShared
             "video_action_switch" -> if (!AndroidUtil.isOOrLater && findPreference<ListPreference>(key)?.value == "2"
                     && !Permissions.canDrawOverlays(activity))
                 Permissions.checkDrawOverlaysPermission(activity)
-            FAST_VIDEO_SCAN -> Settings.fastVideoScan = sharedPreferences.getBoolean(key, true)
+            FAST_VIDEO_SCAN -> {
+                Settings.fastVideoScan = sharedPreferences.getBoolean(key, true)
+                FastVideoIndex.invalidate()
+                // The list provider reads this flag on every load, but the screens already have their
+                // data: rebuild them so the switch visibly takes effect when going back.
+                (activity as? PreferencesActivity)?.setRestart()
+            }
             PLAYBACK_HISTORY -> {
                 if (sharedPreferences.getBoolean(key, true)) {
                     findPreference<CheckBoxPreference>(AUDIO_RESUME_PLAYBACK)?.isChecked = true
