@@ -545,6 +545,8 @@
     <string name="mx_folder_banned">「%1$s」已从媒体库移除</string>
     <string name="mx_folder_unbanned">「%1$s」已重新加入媒体库</string>
     <string name="mx_ml_busy_browse_anyway">媒体库正在扫描，这里做的改动会排队，扫描结束后生效</string>
+    <string name="mx_selection_applied">已更新 %1$d 个文件夹</string>
+    <string name="mx_selection_nothing_to_do">当前列表没有需要改动的项</string>
     <string name="hidden_videos_added">已把 %1$d 个隐藏文件夹加入媒体库，扫描完成后视频会出现在「视频」页面</string>
     <string name="hidden_videos_removed">已从媒体库移除 %1$d 个隐藏文件夹</string>
     <string name="hidden_videos_none">没有找到包含视频的隐藏文件夹</string>
