@@ -512,6 +512,23 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
         super.setFabPlayVisibility(!viewModel.isEmpty() && enable)
     }
 
+    /** Positions the action mode can select: every item of the current list. */
+    private fun selectablePositions(): List<Int> = (0 until videoListAdapter.itemCount).toList()
+
+    /**
+     * Selects everything in the current list at once, or clears the selection when the whole
+     * list is already selected. Same behaviour as the file browser action mode.
+     */
+    private fun toggleSelectAll(mode: ActionMode) {
+        val positions = selectablePositions()
+        if (positions.isEmpty()) return
+        val helper = multiSelectHelper
+        if (positions.all { helper.isSelected(it) }) helper.clearSelection()
+        else helper.selectAll(positions, videoListAdapter.itemCount)
+        // Refresh the title and the other actions (clearing everything closes the action mode).
+        mode.invalidate()
+    }
+
     override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
         when (viewModel.groupingType) {
             VideoGroupingType.NONE -> mode.menuInflater.inflate(R.menu.action_mode_video, menu)
@@ -547,6 +564,12 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
         }
         menu.findItem(R.id.action_mode_favorite_add).isVisible = multiSelectHelper.getSelection().none { it.isFavorite }
         menu.findItem(R.id.action_mode_favorite_remove).isVisible = multiSelectHelper.getSelection().none { !it.isFavorite }
+        menu.findItem(R.id.action_mode_select_all)?.let { selectAll ->
+            val positions = selectablePositions()
+            selectAll.isVisible = positions.size > 1
+            val allSelected = positions.isNotEmpty() && positions.all { multiSelectHelper.isSelected(it) }
+            selectAll.title = getString(if (allSelected) R.string.deselect_all else R.string.select_all)
+        }
         return true
     }
 
@@ -559,6 +582,11 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
 
     override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
         if (!isStarted()) return false
+        if (item.itemId == R.id.action_mode_select_all) {
+            // Selection changed, keep the action mode alive so the batch actions stay available.
+            toggleSelectAll(mode)
+            return true
+        }
         when (viewModel.groupingType) {
             VideoGroupingType.NONE -> {
                 val list = multiSelectHelper.getSelection().map { it as MediaWrapper }
