@@ -74,6 +74,7 @@ import org.videolan.tools.KEY_VIDEOS_CARDS
 import org.videolan.tools.MultiSelectHelper
 import org.videolan.tools.PLAYBACK_HISTORY
 import org.videolan.tools.RESULT_RESTART
+import org.videolan.tools.SHOW_HIDDEN_VIDEOS
 import org.videolan.tools.Settings
 import org.videolan.tools.dp
 import org.videolan.tools.isStarted
@@ -285,6 +286,7 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
                     currentSort = viewModel.provider.sort,
                     currentSortDesc = viewModel.provider.desc,
                     videoGroup = if (viewModel.group == null && viewModel.folder == null) settings.getString(KEY_GROUP_VIDEOS, GROUP_VIDEOS_NAME) else null,
+                    showHiddenVideos = settings.getBoolean(SHOW_HIDDEN_VIDEOS, false),
                     defaultPlaybackActions = DefaultPlaybackActionMediaType.VIDEO.getDefaultPlaybackActions(settings),
                     defaultActionType = getString(DefaultPlaybackActionMediaType.VIDEO.title)
                 )

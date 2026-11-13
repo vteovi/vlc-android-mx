@@ -83,6 +83,7 @@ import org.videolan.tools.KEY_QUICK_PLAY
 import org.videolan.tools.KEY_QUICK_PLAY_DEFAULT
 import org.videolan.tools.KeyHelper
 import org.videolan.tools.MultiSelectHelper
+import org.videolan.tools.SHOW_HIDDEN_VIDEOS
 import org.videolan.tools.Settings
 import org.videolan.tools.dp
 import org.videolan.tools.getposition
@@ -755,6 +756,7 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
                     currentSortDesc = viewModel.provider.desc,
                     showOnlyMultimediaFiles = settings.getBoolean(BROWSER_SHOW_ONLY_MULTIMEDIA, false),
                     showHiddenFiles = settings.getBoolean(BROWSER_SHOW_HIDDEN_FILES, true),
+                    showHiddenVideos = settings.getBoolean(SHOW_HIDDEN_VIDEOS, false),
                     defaultPlaybackActions = DefaultPlaybackActionMediaType.FILE.getDefaultPlaybackActions(settings),
                     defaultActionType = getString(R.string.files)
                 )

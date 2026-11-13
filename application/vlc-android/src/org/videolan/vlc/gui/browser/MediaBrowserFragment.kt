@@ -59,7 +59,6 @@ import org.videolan.vlc.gui.helpers.MedialibraryUtils
 import org.videolan.vlc.gui.helpers.UiTools
 import org.videolan.vlc.gui.helpers.fillActionMode
 import org.videolan.vlc.interfaces.Filterable
-import org.videolan.vlc.util.HiddenVideosSync
 import org.videolan.vlc.media.MediaUtils
 import org.videolan.vlc.util.Permissions
 import org.videolan.vlc.viewmodels.DisplaySettingsViewModel
@@ -181,8 +180,6 @@ abstract class MediaBrowserFragment<T : SortableModel> : BaseFragment(), Filtera
     override fun onResume() {
         super.onResume()
         (viewModel as? MedialibraryViewModel)?.resume()
-        // Picks up new videos dropped in hidden folders, throttled internally.
-        HiddenVideosSync.syncIfNeeded(requireContext())
     }
 
 

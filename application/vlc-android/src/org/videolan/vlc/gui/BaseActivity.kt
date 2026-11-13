@@ -43,6 +43,7 @@ import org.videolan.vlc.gui.helpers.hf.PinCodeDelegate
 import org.videolan.vlc.gui.helpers.hf.checkPIN
 import org.videolan.vlc.media.MediaUtils
 import org.videolan.vlc.util.FileUtils
+import org.videolan.vlc.util.HiddenVideosSync
 import org.videolan.vlc.util.Permissions
 import org.videolan.vlc.util.RemoteAccessUtils
 import org.videolan.vlc.viewmodels.DisplaySettingsViewModel
@@ -146,6 +147,9 @@ abstract class BaseActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         Permissions.emptyCache()
+        // Picks up hidden folders (and new videos inside them) when that option is enabled.
+        // Throttled internally, and a no-op when the option is off.
+        HiddenVideosSync.syncIfNeeded(this)
     }
 
     override fun onRequestPermissionsResult(

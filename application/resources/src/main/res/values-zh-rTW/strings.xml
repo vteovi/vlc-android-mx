@@ -538,10 +538,10 @@
     <string name="show_hidden_folders_title">顯示隱藏資料夾</string>
     <string name="show_hidden_folders_summary">在瀏覽介面顯示以點（.）開頭的隱藏資料夾與檔案。媒體庫不會收錄這些目錄</string>
     <string name="show_hidden_videos_title">顯示隱藏資料夾中的影片</string>
-    <string name="show_hidden_videos_summary">把以點（.）開頭的隱藏資料夾裡的影片加入媒體庫，讓它們出現在「影片」頁面。媒體庫本身不掃描隱藏資料夾，這裡是逐一登記的方式；新增檔案會在下次啟動應用時收錄</string>
-    <string name="hidden_videos_added">已把 %1$d 個影片加入媒體庫</string>
-    <string name="hidden_videos_removed">已從媒體庫移除 %1$d 個影片</string>
-    <string name="hidden_videos_none">隱藏資料夾裡沒有找到影片</string>
+    <string name="show_hidden_videos_summary">把以點（.）開頭的隱藏資料夾加入媒體庫，其中的影片會出現在「影片」頁面</string>
+    <string name="hidden_videos_added">已把 %1$d 個隱藏資料夾加入媒體庫，掃描完成後影片會出現在「影片」頁面</string>
+    <string name="hidden_videos_removed">已從媒體庫移除 %1$d 個隱藏資料夾</string>
+    <string name="hidden_videos_none">沒有找到包含影片的隱藏資料夾</string>
     <string name="ab_repeat_fastseek_warning">已啟用快速搜尋。這可能會導致精度問題</string>
 
     <string name="extensions_prefs_category">擴充套件</string>

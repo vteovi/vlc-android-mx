@@ -538,10 +538,10 @@
     <string name="show_hidden_folders_title">显示隐藏文件夹</string>
     <string name="show_hidden_folders_summary">在浏览界面显示以点（.）开头的隐藏文件夹和文件。媒体库不会收录这些目录</string>
     <string name="show_hidden_videos_title">显示隐藏文件夹中的视频</string>
-    <string name="show_hidden_videos_summary">把以点（.）开头的隐藏文件夹里的视频加入媒体库，使其出现在「视频」页面。媒体库本身不扫描隐藏文件夹，这里采用逐个登记的方式实现；新增文件会在下次启动应用时收录</string>
-    <string name="hidden_videos_added">已把 %1$d 个视频加入媒体库</string>
-    <string name="hidden_videos_removed">已从媒体库移除 %1$d 个视频</string>
-    <string name="hidden_videos_none">隐藏文件夹里没有找到视频</string>
+    <string name="show_hidden_videos_summary">把以点（.）开头的隐藏文件夹加入媒体库，其中的视频会出现在「视频」页面</string>
+    <string name="hidden_videos_added">已把 %1$d 个隐藏文件夹加入媒体库，扫描完成后视频会出现在「视频」页面</string>
+    <string name="hidden_videos_removed">已从媒体库移除 %1$d 个隐藏文件夹</string>
+    <string name="hidden_videos_none">没有找到包含视频的隐藏文件夹</string>
     <string name="ab_repeat_fastseek_warning">已启用快速定位。可能导致精确度问题</string>
 
     <string name="extensions_prefs_category">扩展</string>

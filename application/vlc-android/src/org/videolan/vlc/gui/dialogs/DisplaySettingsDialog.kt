@@ -32,6 +32,7 @@ import android.widget.AdapterView
 import android.widget.AdapterView.OnItemSelectedListener
 import android.widget.ArrayAdapter
 import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
@@ -50,12 +51,17 @@ import org.videolan.resources.AppContextProvider
 import org.videolan.resources.GROUP_VIDEOS_FOLDER
 import org.videolan.resources.GROUP_VIDEOS_NAME
 import org.videolan.resources.GROUP_VIDEOS_NONE
+import org.videolan.tools.BROWSER_SHOW_HIDDEN_FILES
+import org.videolan.tools.SHOW_HIDDEN_VIDEOS as SHOW_HIDDEN_VIDEOS_SETTING
+import org.videolan.tools.Settings
+import org.videolan.tools.putSingle
 import org.videolan.tools.setGone
 import org.videolan.vlc.R
 import org.videolan.vlc.databinding.DialogDisplaySettingsBinding
 import org.videolan.vlc.databinding.SortDisplaySettingBinding
 import org.videolan.vlc.gui.helpers.DefaultPlaybackAction
 import org.videolan.vlc.gui.helpers.UiTools.showPinIfNeeded
+import org.videolan.vlc.util.HiddenVideosSync
 import org.videolan.vlc.viewmodels.DisplaySettingsViewModel
 import org.videolan.vlc.viewmodels.mobile.VideoGroupingType
 import org.videolan.vlc.viewmodels.mobile.VideosViewModel
@@ -70,6 +76,7 @@ const val CURRENT_SORT = "current_sort"
 const val CURRENT_SORT_DESC = "current_sort_desc"
 const val SHOW_ONLY_MULTIMEDIA_FILES = "show_only_multimedia_files"
 const val SHOW_HIDDEN_FILES = "show_hidden_files"
+const val SHOW_HIDDEN_VIDEOS_ARG = "show_hidden_videos_arg"
 const val SHOW_TRACK_NUMBER = "show_track_number"
 const val DEFAULT_ACTIONS = "default_actions"
 const val DEFAULT_ACTION_TYPE = "default_action_type"
@@ -88,6 +95,7 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
     private var showAllArtists: Boolean? = null
     private var showOnlyMultimediaFiles: Boolean? = null
     private var showHiddenFiles: Boolean? = null
+    private var showHiddenVideos: Boolean? = null
     private var showTrackNumbers: Boolean? = null
     private var showVideoGroups: String? = null
     private var defaultPlaybackActions: List<DefaultPlaybackAction>? = null
@@ -100,7 +108,7 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
 
     companion object {
 
-        fun newInstance(displayInCards: Boolean?, showAllArtists: Boolean? = null, onlyFavs: Boolean?, sorts: List<Int>, currentSort: Int, currentSortDesc: Boolean, videoGroup: String? = null, showOnlyMultimediaFiles:Boolean? = null, showTrackNumber:Boolean? = null, showHiddenFiles:Boolean? = null, defaultPlaybackActions: List<DefaultPlaybackAction>? = null, defaultActionType: String? = null): DisplaySettingsDialog {
+        fun newInstance(displayInCards: Boolean?, showAllArtists: Boolean? = null, onlyFavs: Boolean?, sorts: List<Int>, currentSort: Int, currentSortDesc: Boolean, videoGroup: String? = null, showOnlyMultimediaFiles:Boolean? = null, showTrackNumber:Boolean? = null, showHiddenFiles:Boolean? = null, showHiddenVideos:Boolean? = null, defaultPlaybackActions: List<DefaultPlaybackAction>? = null, defaultActionType: String? = null): DisplaySettingsDialog {
             return DisplaySettingsDialog().apply {
                 arguments = bundleOf(SORTS to sorts, CURRENT_SORT to currentSort, CURRENT_SORT_DESC to currentSortDesc, VIDEO_GROUPING to videoGroup)
                 if (displayInCards != null) arguments!!.putBoolean(DISPLAY_IN_CARDS, displayInCards)
@@ -109,6 +117,7 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
                 if (showOnlyMultimediaFiles != null) arguments!!.putBoolean(SHOW_ONLY_MULTIMEDIA_FILES, showOnlyMultimediaFiles)
                 if (showTrackNumber != null) arguments!!.putBoolean(SHOW_TRACK_NUMBER, showTrackNumber)
                 if (showHiddenFiles != null) arguments!!.putBoolean(SHOW_HIDDEN_FILES, showHiddenFiles)
+                if (showHiddenVideos != null) arguments!!.putBoolean(SHOW_HIDDEN_VIDEOS_ARG, showHiddenVideos)
                 if (defaultPlaybackActions != null) arguments!!.putStringArrayList(DEFAULT_ACTIONS, ArrayList(defaultPlaybackActions.map { it.name }))
                 if(defaultActionType != null) arguments!!.putString(DEFAULT_ACTION_TYPE, defaultActionType)
             }
@@ -140,6 +149,7 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
         showOnlyMultimediaFiles = if (arguments?.containsKey(SHOW_ONLY_MULTIMEDIA_FILES) == true) arguments?.getBoolean(SHOW_ONLY_MULTIMEDIA_FILES) else null
         showTrackNumbers = if (arguments?.containsKey(SHOW_TRACK_NUMBER) == true) arguments?.getBoolean(SHOW_TRACK_NUMBER) else null
         showHiddenFiles = if (arguments?.containsKey(SHOW_HIDDEN_FILES) == true) arguments?.getBoolean(SHOW_HIDDEN_FILES) else null
+        showHiddenVideos = if (arguments?.containsKey(SHOW_HIDDEN_VIDEOS_ARG) == true) arguments?.getBoolean(SHOW_HIDDEN_VIDEOS_ARG) else null
         showVideoGroups = arguments?.getString(VIDEO_GROUPING, null)
         val defaultActionsKeys = arguments?.getStringArrayList(DEFAULT_ACTIONS)?.toTypedArray()
         defaultPlaybackActions = when(defaultActionsKeys) {
@@ -175,6 +185,7 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
         updateShowAllFiles()
         updateShowTrackNumbers()
         updateShowHiddenFiles()
+        updateShowHiddenVideos()
         updateSorts()
         updateDefaultActions()
 
@@ -199,7 +210,34 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
         binding.showHiddenFilesCheckbox.setOnCheckedChangeListener { _, isChecked ->
             showHiddenFiles = isChecked
             updateShowHiddenFiles()
-            lifecycleScope.launch { displaySettingsViewModel.send(SHOW_HIDDEN_FILES, showHiddenFiles!!) }
+            // Global setting: it has to be persisted here, this dialog is also opened from lists
+            // that don't listen to the change (video tab, playlists…).
+            Settings.getInstance(requireActivity()).putSingle(BROWSER_SHOW_HIDDEN_FILES, isChecked)
+            Settings.showHiddenFiles = isChecked
+            lifecycleScope.launch { displaySettingsViewModel.send(SHOW_HIDDEN_FILES, isChecked) }
+        }
+
+        binding.showHiddenVideosGroup.setOnClickListener {
+            binding.showHiddenVideosCheckbox.isChecked = !binding.showHiddenVideosCheckbox.isChecked
+        }
+
+        binding.showHiddenVideosCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            showHiddenVideos = isChecked
+            updateShowHiddenVideos()
+            Settings.getInstance(requireActivity()).putSingle(SHOW_HIDDEN_VIDEOS_SETTING, isChecked)
+            Settings.showHiddenVideos = isChecked
+            // The walk can take a moment: hold the application context, the sheet may be gone.
+            val appContext = requireContext().applicationContext
+            lifecycleScope.launch {
+                val count = HiddenVideosSync.sync(appContext, isChecked)
+                val text = when {
+                    isChecked && count == 0 -> appContext.getString(R.string.hidden_videos_none)
+                    isChecked -> appContext.getString(R.string.hidden_videos_added, count)
+                    count == 0 -> return@launch
+                    else -> appContext.getString(R.string.hidden_videos_removed, count)
+                }
+                Toast.makeText(appContext, text, Toast.LENGTH_LONG).show()
+            }
         }
 
         binding.showAllFilesGroup.setOnClickListener {
@@ -364,6 +402,21 @@ class DisplaySettingsDialog : VLCBottomSheetDialogFragment() {
             return
         }
         binding.showHiddenFilesCheckbox.isChecked = showHiddenFiles!!
+    }
+
+    /**
+     * Update the view for the "show videos of hidden folders" item
+     *
+     */
+    private fun updateShowHiddenVideos() {
+        if (showHiddenVideos == null) {
+            binding.showHiddenVideosGroup.setGone()
+            binding.hiddenVideosImage.setGone()
+            binding.showHiddenVideosCheckbox.setGone()
+            binding.showHiddenVideosText.setGone()
+            return
+        }
+        binding.showHiddenVideosCheckbox.isChecked = showHiddenVideos!!
     }
 
     /**
