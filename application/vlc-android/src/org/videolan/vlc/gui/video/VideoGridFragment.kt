@@ -115,6 +115,7 @@ import org.videolan.vlc.gui.helpers.UiTools.createShortcut
 import org.videolan.vlc.gui.helpers.UiTools.showPinIfNeeded
 import org.videolan.vlc.gui.helpers.fillActionMode
 import org.videolan.vlc.gui.view.EmptyLoadingState
+import org.videolan.vlc.interfaces.IRefreshable
 import org.videolan.vlc.media.MediaUtils
 import org.videolan.vlc.media.PlaylistManager
 import org.videolan.vlc.media.getAll
@@ -164,7 +165,7 @@ import org.videolan.vlc.viewmodels.mobile.getViewModel
 
 private const val TAG = "VLC/VideoListFragment"
 
-class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshLayout.OnRefreshListener, CtxActionReceiver {
+class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshLayout.OnRefreshListener, CtxActionReceiver, IRefreshable {
 
     private lateinit var dataObserver: RecyclerView.AdapterDataObserver
     private lateinit var videoListAdapter: VideoListAdapter
@@ -487,8 +488,9 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
     override fun onRefresh() = refresh()
 
     /**
-     * Pull-to-refresh and toolbar refresh share the same source, driven by the "fast video list"
-     * switch:
+     * Pull-to-refresh and the toolbar refresh button share this implementation (the fragment is
+     * now an [IRefreshable], so `MainActivity.forceRefresh()` reaches it too). The source follows
+     * the "fast video list" switch:
      * - on (default): drop the cached cursor and re-read MediaStore, no storage walk at all
      * - off: the list comes from the VLC media library again, so a refresh means a real rescan
      */
@@ -497,7 +499,7 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
             viewModel.refreshFromSystemIndex()
         } else {
             val host = activity
-            if (host != null) host.reloadLibrary() else super.refresh()
+            if (host != null) host.reloadLibrary() else viewModel.refresh()
         }
     }
 
