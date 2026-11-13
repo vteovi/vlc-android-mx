@@ -40,11 +40,10 @@ class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Cont
     override val isVideoPermDependant = true
 
     /**
-     * MX-style shortcut: while the media library is still opening every file one by one, list the
-     * videos straight from the system index instead. Only valid for the flat video list: the folder
-     * and group views need the library itself.
+     * The flat "All videos" list comes from the system index; the folder and group views still
+     * need the library itself, and so does the favourites filter (a favourite is a library flag).
      */
-    private fun useFastScan() = folder === null && group === null && FastVideoIndex.isWanted()
+    private fun useFastScan() = folder === null && group === null && !onlyFavorites && FastVideoIndex.isWanted()
 
     override fun getTotalCount() = if (useFastScan()) FastVideoIndex.count(context, model.filterQuery) else if (model.filterQuery == null) when {
         folder !== null -> folder.mediaCount(Folder.TYPE_FOLDER_VIDEO)

@@ -1,18 +1,21 @@
 /*****************************************************************************
  * FastVideoIndex.kt
  *****************************************************************************
- * MX-style instant video list, read from the system media index.
+ * Instant video list, read from the system media index.
  *
  * Building the VLC media library means opening every single file with libVLC to learn its type,
  * duration and tracks. That costs a few hundred milliseconds per video, so on a big collection the
- * first scan runs for minutes and the "Video" tab fills up very slowly.
+ * scan runs for minutes and the "Video" tab would fill up very slowly.
  *
  * Android already indexes every video on the device (it is what the gallery apps use), so we read
  * that index instead: one cursor returns the whole collection in a few hundred milliseconds, the
  * system generates the thumbnails on demand, and playing a video only needs its file path.
  *
- * This list is only a stopgap: it is used while the media library is busy, and as soon as the
- * library is idle its own list (favourites, groups, resume points, hidden folders…) takes over.
+ * This is now the normal source for the flat "All videos" list, not a stopgap: the media library
+ * keeps its slow per-file pass in the background for favourites, groups and resume points, but
+ * nothing waits for it any more. Videos the library already knows about are returned as the
+ * library entry itself, so those features keep working, and the videos explicitly enabled from
+ * hidden folders (which the system index never walks) are merged in from the library.
  *****************************************************************************/
 
 package org.videolan.vlc.util
@@ -50,11 +53,6 @@ object FastVideoIndex {
     private var cached: List<Entry>? = null
     private var cachedAt = 0L
 
-    /** Set as soon as the fast list served something, used to know a switch back is needed. */
-    @Volatile
-    var serving = false
-        private set
-
     private val projection = arrayOf(
             MediaStore.Video.Media.DATA,
             MediaStore.Video.Media.TITLE,
@@ -62,24 +60,16 @@ object FastVideoIndex {
             MediaStore.Video.Media.DATE_MODIFIED)
 
     /**
-     * True while the media library still needs its slow per-file pass, so the instant list is the
-     * best thing we can show.
+     * True when the flat video list should be served from the system index. It stays on by default
+     * now that the media library no longer has to finish a scan before the list is usable.
      */
-    fun isWanted(): Boolean {
-        if (!Settings.fastVideoScan) return false
-        val medialibrary = Medialibrary.getInstance()
-        if (!medialibrary.isInitiated || !medialibrary.isStarted) return true
-        if (medialibrary.isWorking) return true
-        return medialibrary.videoCount == 0
-    }
+    fun isWanted(): Boolean = Settings.fastVideoScan
 
     fun count(context: Context, filter: String?): Int {
-        serving = true
         return list(context, filter).size
     }
 
     fun page(context: Context, sort: Int, desc: Boolean, filter: String?, size: Int, start: Int): Array<MediaWrapper> {
-        serving = true
         val entries = list(context, filter, sort, desc)
         if (start >= entries.size) return emptyArray()
         val end = (start + size).coerceAtMost(entries.size)
@@ -87,7 +77,6 @@ object FastVideoIndex {
     }
 
     fun all(context: Context, sort: Int, desc: Boolean, filter: String?): Array<MediaWrapper> {
-        serving = true
         return list(context, filter, sort, desc).map { toWrapper(it) }.toTypedArray()
     }
 
@@ -96,8 +85,19 @@ object FastVideoIndex {
     }
 
     private fun toWrapper(entry: Entry): MediaWrapper {
-        val file = File(entry.path)
-        val media = MLServiceLocator.getAbstractMediaWrapper(Uri.fromFile(file))
+        val uri = Uri.fromFile(File(entry.path))
+        // Reuse the media library entry when there is one: it carries the real id, and favourites,
+        // groups and resume points are all stored against that id. Only videos the library does not
+        // know yet get a synthetic wrapper.
+        val known = try {
+            val medialibrary = Medialibrary.getInstance()
+            if (medialibrary.isInitiated) medialibrary.getMedia(uri) else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Can't look up ${entry.path} in the media library", e)
+            null
+        }
+        if (known != null && known.type == MediaWrapper.TYPE_VIDEO) return known
+        val media = MLServiceLocator.getAbstractMediaWrapper(uri)
         media.setType(MediaWrapper.TYPE_VIDEO)
         media.setTitle(entry.title)
         media.setLength(entry.duration)
@@ -135,6 +135,7 @@ object FastVideoIndex {
 
     private fun query(context: Context): List<Entry> {
         val result = ArrayList<Entry>()
+        val seen = HashSet<String>()
         try {
             // No per-file File.exists() here: one stat call per video was the slowest part of the
             // whole query on a big or external storage. A path that the index still lists but that
@@ -147,13 +148,35 @@ object FastVideoIndex {
                 val dateIdx = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(dataIdx) ?: continue
-                    if (path.isEmpty()) continue
+                    if (path.isEmpty() || !seen.add(path)) continue
                     val title = cursor.getString(titleIdx) ?: File(path).nameWithoutExtension
                     result.add(Entry(path, title, cursor.getLong(durationIdx), cursor.getLong(dateIdx) * 1000L))
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Can't read the system video index", e)
+        }
+        if (Settings.showHiddenVideos) result.addAll(hiddenEntries(seen))
+        return result
+    }
+
+    /**
+     * The system index never walks folders whose name starts with a dot, so the videos the user
+     * explicitly asked for with "show videos from hidden folders" have to come from the library.
+     */
+    private fun hiddenEntries(seen: MutableSet<String>): List<Entry> {
+        val result = ArrayList<Entry>()
+        try {
+            val medialibrary = Medialibrary.getInstance()
+            if (!medialibrary.isInitiated || !medialibrary.isStarted) return result
+            for (media in medialibrary.getVideos(Medialibrary.SORT_DEFAULT, false, true, false)) {
+                val path = media.uri.path ?: continue
+                if (!path.contains("/.")) continue
+                if (!seen.add(path)) continue
+                result.add(Entry(path, media.title ?: File(path).nameWithoutExtension, media.length, media.lastModified))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Can't read the hidden videos from the media library", e)
         }
         return result
     }

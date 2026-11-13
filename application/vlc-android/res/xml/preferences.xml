@@ -18,6 +18,12 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/video_prefs_category">
+        <CheckBoxPreference
+                app:singleLineTitle="false"
+                android:defaultValue="true"
+                android:key="fast_video_scan"
+                android:summary="@string/mx_fast_video_scan_summary"
+                android:title="@string/mx_fast_video_scan"/>
         <ListPreference
                 android:key="video_action_switch"
                 android:defaultValue="0"

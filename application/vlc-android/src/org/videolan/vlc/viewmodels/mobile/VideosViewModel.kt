@@ -79,17 +79,21 @@ class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Fol
     }
 
     /**
-     * The system-index list is only a stopgap: once the media library finished its own scan, swap
-     * back to it so favourites, groups and resume points are the real ones.
+     * The list no longer waits for the scan: it is served from the system index from the start.
+     * One refresh when the media library finishes a pass is enough, so the videos it just parsed
+     * (and the hidden folders merged from it) appear without reopening the screen.
      */
     private fun watchScanCompletion() = viewModelScope.launch {
+        var wasWorking = medialibrary.isWorking
         while (isActive) {
-            delay(1500L)
-            if (!FastVideoIndex.serving) continue
-            if (FastVideoIndex.isWanted()) continue
-            FastVideoIndex.invalidate()
-            refresh()
-            return@launch
+            delay(2000L)
+            val working = medialibrary.isWorking
+            if (wasWorking && !working) {
+                FastVideoIndex.invalidate()
+                refresh()
+                return@launch
+            }
+            wasWorking = working
         }
     }
 

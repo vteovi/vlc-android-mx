@@ -38,6 +38,7 @@ import org.videolan.libvlc.util.AndroidUtil
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.resources.util.parcelable
 import org.videolan.tools.AUDIO_RESUME_PLAYBACK
+import org.videolan.tools.FAST_VIDEO_SCAN
 import org.videolan.tools.KEY_AUDIO_LAST_PLAYLIST
 import org.videolan.tools.KEY_CURRENT_AUDIO
 import org.videolan.tools.KEY_CURRENT_AUDIO_RESUME_ARTIST
@@ -225,6 +226,7 @@ class PreferencesFragment : BasePreferenceFragment(), SharedPreferences.OnShared
             "video_action_switch" -> if (!AndroidUtil.isOOrLater && findPreference<ListPreference>(key)?.value == "2"
                     && !Permissions.canDrawOverlays(activity))
                 Permissions.checkDrawOverlaysPermission(activity)
+            FAST_VIDEO_SCAN -> Settings.fastVideoScan = sharedPreferences.getBoolean(key, true)
             PLAYBACK_HISTORY -> {
                 if (sharedPreferences.getBoolean(key, true)) {
                     findPreference<CheckBoxPreference>(AUDIO_RESUME_PLAYBACK)?.isChecked = true
