@@ -25,12 +25,15 @@ package org.videolan.vlc.gui.browser
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.databinding.ViewDataBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.videolan.medialibrary.interfaces.Medialibrary
@@ -39,7 +42,6 @@ import org.videolan.medialibrary.media.MediaLibraryItem
 import org.videolan.medialibrary.media.Storage
 import org.videolan.resources.AndroidDevices
 import org.videolan.resources.util.canReadStorage
-import org.videolan.tools.containsPath
 import org.videolan.tools.removeFileScheme
 import org.videolan.tools.sanitizePath
 import org.videolan.tools.stripTrailingSlash
@@ -55,16 +57,37 @@ import java.io.File
 
 class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>) : BaseBrowserAdapter(browserContainer) {
 
-    private var mediaDirsLocation: MutableList<String> = mutableListOf()
+    private companion object {
+        const val TAG = "VLC/StorageBrowserAdapter"
+
+        /**
+         * How long an optimistic state survives without being confirmed by the media library.
+         * After that the box falls back to what the library really knows, so a folder that could
+         * not be added can never stay ticked (and therefore block the next select all).
+         */
+        const val PENDING_TIMEOUT = 10_000L
+
+        /** Small gap between two media library calls of a bulk action, to keep the ML thread alive. */
+        const val BULK_STEP_DELAY = 40L
+    }
+
+    private val mediaDirsLocation = mutableListOf<String>()
     private lateinit var customDirsLocation: List<String>
     var bannedFolders: List<String> = listOf()
-    private var updateJob : Job? = null
+    private var updateJob: Job? = null
+    private var bulkJob: Job? = null
+
+    private data class PendingState(val checked: Boolean, val at: Long)
+
     /**
      * States the user just asked for, applied immediately and dropped as soon as the media library
      * reports the same thing back. Without this the list would show the old state until the
      * discovery service has finished.
      */
-    private val pendingStates = HashMap<String, Boolean>()
+    private val pendingStates = HashMap<String, PendingState>()
+
+    val isBulkRunning: Boolean
+        get() = bulkJob?.isActive == true
 
     init {
         updateMediaDirs(browserContainer.containerActivity())
@@ -85,24 +108,13 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
             updateJob?.join()
             if (updateJob?.isCancelled == true) return@launch
             val hasContextMenu = customDirsLocation.contains(storagePath.stripTrailingSlash()) && !multiSelectHelper.inActionMode
-            val checked = browserContainer.scannedDirectory || mediaDirsLocation.containsPath(storagePath)
             vh.bindingContainer.setHasContextMenu(hasContextMenu)
             val banned = MedialibraryUtils.isBanned(uri, bannedFolders)
             val bannedParent = isBannedByParent(uri)
 
             vh.bindingContainer.setIsBanned(banned)
             vh.bindingContainer.setIsBannedByParent(bannedParent)
-            val libraryState = when {
-                banned -> ThreeStatesCheckbox.STATE_UNCHECKED
-                checked -> ThreeStatesCheckbox.STATE_CHECKED
-                hasDiscoveredChildren(storagePath) -> ThreeStatesCheckbox.STATE_PARTIAL
-                else -> ThreeStatesCheckbox.STATE_UNCHECKED
-            }
-            vh.bindingContainer.browserCheckbox.state = when (pendingStates[storagePath]) {
-                true -> ThreeStatesCheckbox.STATE_CHECKED
-                false -> ThreeStatesCheckbox.STATE_UNCHECKED
-                else -> libraryState
-            }
+            vh.bindingContainer.browserCheckbox.state = stateOf(uri)
             if(AndroidDevices.isTv && !browserContainer.isRootDirectory) vh.bindingContainer.banIcon.visibility = View.VISIBLE
             // Tapping the box is the normal way to select a folder, at every depth: a folder below
             // an already scanned root is unselected by banning it.
@@ -153,13 +165,74 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
         super.onViewRecycled(holder)
     }
 
-    private fun hasDiscoveredChildren(path: String): Boolean {
-        for (directory in mediaDirsLocation) if (directory.startsWith(path)) return true
-        return false
+    // ---------------------------------------------------------------------------------------
+    // Selection state
+    //
+    // The media library knows three things about a folder: it is a root by itself, it is inside a
+    // root, or it contains a root. The list used to mix those up (a folder covered by its parent
+    // was reported as selected without being a root), which made "select all" and "invert" fight
+    // with the real state and eventually lose track of it. Everything below derives from these
+    // three predicates, and the UI, "select all" and "invert" all go through [stateOf].
+    // ---------------------------------------------------------------------------------------
+
+    private fun keyOf(path: String): String = path.sanitizePath().trimEnd('/')
+
+    /** This folder itself is a media library root. */
+    private fun isLibraryRoot(path: String): Boolean {
+        val key = keyOf(path)
+        return key.isNotEmpty() && mediaDirsLocation.any { it == key }
     }
 
-    /** True when an ancestor is banned: the folder itself cannot be changed, only its parent can. */
-    private fun isBannedByParent(uri: Uri) = MedialibraryUtils.isBanned(uri, bannedFolders) && !MedialibraryUtils.isStrictlyBanned(uri, bannedFolders)
+    /** A parent folder is a library root, so this folder is inside the media library. */
+    private fun isInsideLibraryRoot(path: String): Boolean =
+            browserContainer.scannedDirectory || isCoveredByListedRoot(path)
+
+    /** Same as [isInsideLibraryRoot] without the "current directory is a root" shortcut. */
+    private fun isCoveredByListedRoot(path: String): Boolean {
+        val key = keyOf(path)
+        if (key.isEmpty()) return false
+        return mediaDirsLocation.any { it.isNotEmpty() && key.startsWith("$it/") }
+    }
+
+    /** A child folder is a library root. */
+    private fun hasLibraryChild(path: String): Boolean {
+        val key = keyOf(path)
+        if (key.isEmpty()) return false
+        return mediaDirsLocation.any { it.startsWith("$key/") }
+    }
+
+    private fun pendingOf(path: String): Boolean? {
+        val pending = pendingStates[path] ?: return null
+        if (SystemClock.elapsedRealtime() - pending.at > PENDING_TIMEOUT) {
+            pendingStates.remove(path)
+            return null
+        }
+        return pending.checked
+    }
+
+    /**
+     * The single source of truth for a checkbox: optimistically requested state first, then the
+     * media library. A folder inside a library root shows a partial box, because it is included in
+     * the library without being a root of its own.
+     */
+    private fun stateOf(uri: Uri): Int {
+        if (MedialibraryUtils.isBanned(uri, bannedFolders)) return ThreeStatesCheckbox.STATE_UNCHECKED
+        val path = pathOf(uri)
+        pendingOf(path)?.let { return if (it) ThreeStatesCheckbox.STATE_CHECKED else ThreeStatesCheckbox.STATE_UNCHECKED }
+        return when {
+            isLibraryRoot(path) -> ThreeStatesCheckbox.STATE_CHECKED
+            // Covered by a parent root: it is in the library, so the box is simply ticked.
+            isInsideLibraryRoot(path) -> ThreeStatesCheckbox.STATE_CHECKED
+            // Only some children are library roots, hence the partial box.
+            hasLibraryChild(path) -> ThreeStatesCheckbox.STATE_PARTIAL
+            else -> ThreeStatesCheckbox.STATE_UNCHECKED
+        }
+    }
+
+    private fun stateOf(item: MediaLibraryItem): Int {
+        val uri = uriOf(item) ?: return ThreeStatesCheckbox.STATE_UNCHECKED
+        return stateOf(uri)
+    }
 
     private fun uriOf(item: MediaLibraryItem): Uri? = when (item) {
         is Storage -> item.uri
@@ -172,77 +245,181 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
         return if (path.endsWith("/")) path else "$path/"
     }
 
-    /** Mirrors the state computed in [onBindViewHolder], used by the select all / invert actions. */
-    private fun isSelected(item: MediaLibraryItem): Boolean {
-        val uri = uriOf(item) ?: return false
-        if (MedialibraryUtils.isBanned(uri, bannedFolders)) return false
-        val path = pathOf(uri)
-        return browserContainer.scannedDirectory || mediaDirsLocation.containsPath(path) || hasDiscoveredChildren(path)
+    /** True when an ancestor is banned: the folder itself cannot be changed, only its parent can. */
+    private fun isBannedByParent(uri: Uri) = MedialibraryUtils.isBanned(uri, bannedFolders) && !MedialibraryUtils.isStrictlyBanned(uri, bannedFolders)
+
+    /**
+     * True when nothing but "select all" is left to do: every listed folder is either selected or
+     * skipped because its parent is banned.
+     */
+    fun allSelected(): Boolean {
+        if (dataset.isEmpty()) return false
+        var selectable = false
+        for (item in dataset) {
+            val uri = uriOf(item) ?: continue
+            if (isBannedByParent(uri)) continue
+            selectable = true
+            if (stateOf(uri) == ThreeStatesCheckbox.STATE_UNCHECKED) return false
+        }
+        return selectable
     }
 
-    fun allSelected(): Boolean = dataset.isNotEmpty() && dataset.all { isSelected(it) }
+    // ---------------------------------------------------------------------------------------
+    // Bulk actions
+    // ---------------------------------------------------------------------------------------
 
     /** Checks or unchecks every listed folder, as if each box had been tapped. */
-    fun setAllChecked(checked: Boolean) = applyToAll { checked }
+    fun setAllChecked(checked: Boolean) {
+        // The whole directory is a library root: one single operation covers all its children.
+        if (browserContainer.scannedDirectory) {
+            if (!checked) applyToWholeDirectory(false)
+            return
+        }
+        bulkApply { _ -> checked }
+    }
 
     /** Flips every listed folder. */
-    fun invertSelection() = applyToAll { !isSelected(it) }
+    fun invertSelection() {
+        if (browserContainer.scannedDirectory) {
+            // Every child is listed as selected: inverting means dropping the whole directory.
+            applyToWholeDirectory(false)
+            return
+        }
+        bulkApply { item ->
+            if (stateOf(item) == ThreeStatesCheckbox.STATE_UNCHECKED) true else false
+        }
+    }
 
-    private fun applyToAll(resolve: (MediaLibraryItem) -> Boolean) {
-        // The onboarding wizard collects a preselection instead of real media library roots.
-        if ((browserContainer.containerActivity() as? SecondaryActivity)?.isOnboarding == true) return
-        var changed = false
+    private fun refreshMenu() {
+        try {
+            browserContainer.containerActivity().invalidateOptionsMenu()
+        } catch (ignored: Exception) {
+        }
+    }
+
+    private fun isOnboarding() = (browserContainer.containerActivity() as? SecondaryActivity)?.isOnboarding == true
+
+    private fun bulkApply(plan: (MediaLibraryItem) -> Boolean) {
+        if (isOnboarding()) return
+        cancelBulk()
+        val actions = ArrayList<Triple<Uri, String, Boolean>>()
         dataset.forEach { item ->
             val uri = uriOf(item) ?: return@forEach
             // Nothing can be done for a folder that is banned through one of its parents.
             if (isBannedByParent(uri)) return@forEach
-            val newState = resolve(item)
-            if (isSelected(item) == newState) return@forEach
-            applyChecked(uri, pathOf(uri), newState)
-            changed = true
+            val target = plan(item)
+            val current = stateOf(uri)
+            val alreadyThere = when (current) {
+                ThreeStatesCheckbox.STATE_CHECKED -> target
+                ThreeStatesCheckbox.STATE_UNCHECKED -> !target
+                // A partial folder has to be acted on in both directions.
+                else -> false
+            }
+            if (alreadyThere) return@forEach
+            actions.add(Triple(uri, pathOf(uri), target))
         }
-        if (changed) notifyItemRangeChanged(0, itemCount)
+        if (actions.isEmpty()) return
+        val now = SystemClock.elapsedRealtime()
+        actions.forEach { (_, path, target) -> pendingStates[path] = PendingState(target, now) }
+        notifyItemRangeChanged(0, itemCount)
+        bulkJob = launch {
+            for ((uri, path, target) in actions) {
+                performChecked(uri, path, target)
+                delay(BULK_STEP_DELAY)
+            }
+            // Let the discovery service settle, then read the real state back.
+            delay(600)
+            refreshFromLibrary()
+            bulkJob = null
+            refreshMenu()
+        }
+    }
+
+    private fun cancelBulk() {
+        bulkJob?.cancel()
+        bulkJob = null
+    }
+
+    private fun applyToWholeDirectory(checked: Boolean) {
+        if (isOnboarding()) return
+        val mrl = browserContainer.mrl ?: return
+        val delegate = browserContainer.getStorageDelegate() ?: return
+        val uri = mrl.toUri()
+        val path = pathOf(uri)
+        cancelBulk()
+        pendingStates[path] = PendingState(checked, SystemClock.elapsedRealtime())
+        notifyItemRangeChanged(0, itemCount)
+        bulkJob = launch {
+            withContext(Dispatchers.IO) { delegate.setFolderChecked(mrl, checked) }
+            delay(800)
+            refreshFromLibrary()
+            bulkJob = null
+            refreshMenu()
+        }
     }
 
     /**
      * Applies a checkbox state at any depth:
      * - plain folder -> added / removed as a media library root
-     * - folder below an already scanned root -> banned / unbanned, since its parent covers it
+     * - folder covered by a parent root -> banned / unbanned, since its parent already covers it
+     * - folder containing roots but not covered -> the child roots are dropped
      */
-    private fun applyChecked(uri: Uri, path: String, checked: Boolean) {
-        if (isBannedByParent(uri)) return
-        pendingStates[path] = checked
+    private suspend fun performChecked(uri: Uri, path: String, checked: Boolean) {
         val delegate = browserContainer.getStorageDelegate() ?: return
         val rawPath = uri.path ?: uri.toString()
         if (checked) {
-            if (MedialibraryUtils.isStrictlyBanned(uri, bannedFolders)) delegate.setFolderBanned(rawPath, false)
-            else delegate.setFolderChecked(uri.toString(), true)
+            val unban = MedialibraryUtils.isStrictlyBanned(uri, bannedFolders)
+            withContext(Dispatchers.IO) {
+                if (unban) delegate.setFolderBanned(rawPath, false) else delegate.setFolderChecked(uri.toString(), true)
+            }
             return
         }
         when {
-            mediaDirsLocation.containsPath(path) -> delegate.setFolderChecked(uri.toString(), false)
-            hasDiscoveredChildren(path) -> removeRootsUnder(path)
-            browserContainer.scannedDirectory -> delegate.setFolderBanned(rawPath, true)
+            isLibraryRoot(path) -> withContext(Dispatchers.IO) { delegate.setFolderChecked(uri.toString(), false) }
+            isInsideLibraryRoot(path) -> withContext(Dispatchers.IO) { delegate.setFolderBanned(rawPath, true) }
+            hasLibraryChild(path) -> removeChildRoots(path)
         }
     }
 
     /** Unselecting a folder also has to drop the roots that were added deeper, if any. */
-    private fun removeRootsUnder(path: String) {
-        val key = path.sanitizePath().trimEnd('/')
+    private suspend fun removeChildRoots(path: String) {
+        val key = keyOf(path)
         if (key.isEmpty()) return
         val delegate = browserContainer.getStorageDelegate() ?: return
-        mediaDirsLocation
-                .filter { val candidate = it.sanitizePath(); candidate != key && candidate.startsWith("$key/") }
-                .forEach { delegate.setFolderChecked(Uri.fromFile(File(it.sanitizePath())).toString(), false) }
+        val children = mediaDirsLocation.filter { it.isNotEmpty() && it != key && it.startsWith("$key/") }
+        withContext(Dispatchers.IO) {
+            // delay() is not allowed inside forEach's non-suspending lambda
+            for (child in children) {
+                delegate.setFolderChecked(Uri.fromFile(File(child)).toString(), false)
+                delay(BULK_STEP_DELAY)
+            }
+        }
     }
 
     /** Drops the optimistic states the media library now agrees with. */
     private fun prunePendingStates() {
+        val now = SystemClock.elapsedRealtime()
         val iterator = pendingStates.entries.iterator()
         while (iterator.hasNext()) {
-            val (path, wanted) = iterator.next()
-            if (mediaDirsLocation.containsPath(path) == wanted) iterator.remove()
+            val (path, pending) = iterator.next()
+            val actual = isLibraryRoot(path) || isCoveredByListedRoot(path)
+            if (now - pending.at > PENDING_TIMEOUT || actual == pending.checked) iterator.remove()
         }
+    }
+
+    private suspend fun refreshFromLibrary() {
+        updateMediaDirs(browserContainer.containerActivity())
+        updateJob?.join()
+        bannedFolders = withContext(Dispatchers.IO) {
+            try {
+                Medialibrary.getInstance().bannedFolders().toList()
+            } catch (e: Exception) {
+                Log.w(TAG, "Can't read the banned folders", e)
+                bannedFolders
+            }
+        }
+        prunePendingStates()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     suspend fun updateListState(context: Context) {
@@ -265,7 +442,8 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
             }
 
             folders.forEach {
-                mediaDirsLocation.add(Uri.decode(it.removeFileScheme()))
+                val key = keyOf(Uri.decode(it.removeFileScheme()))
+                if (key.isNotEmpty()) mediaDirsLocation.add(key)
             }
             customDirsLocation = DirectoryRepository.getInstance(context).getCustomDirectories().map { it.path }
             prunePendingStates()
@@ -276,7 +454,7 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
         val checkbox = v as? ThreeStatesCheckbox ?: return
         val delegate = browserContainer.getStorageDelegate() ?: return
         // The onboarding wizard keeps its own preselection logic.
-        if ((browserContainer.containerActivity() as? SecondaryActivity)?.isOnboarding == true) {
+        if (isOnboarding()) {
             delegate.checkBoxAction(v, mrl)
             return
         }
@@ -288,6 +466,9 @@ class StorageBrowserAdapter(browserContainer: BrowserContainer<MediaLibraryItem>
             return
         }
         val uri = mrl.toUri()
-        applyChecked(uri, pathOf(uri), checked)
+        val path = pathOf(uri)
+        cancelBulk()
+        pendingStates[path] = PendingState(checked, SystemClock.elapsedRealtime())
+        launch { performChecked(uri, path, checked) }
     }
 }

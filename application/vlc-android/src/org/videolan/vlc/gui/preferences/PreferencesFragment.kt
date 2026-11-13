@@ -149,15 +149,17 @@ class PreferencesFragment : BasePreferenceFragment(), SharedPreferences.OnShared
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         when (preference.key) {
             "directories" -> {
+                // A running scan used to make this entry a dead end. The list is read-only from the
+                // media library's point of view, so it can be opened while it is working; changes
+                // are queued by the service and just take a bit longer to show up.
                 if (Medialibrary.getInstance().isWorking) {
-                    UiTools.snacker(requireActivity(), getString(R.string.settings_ml_block_scan))
-                } else {
-                    val activity = requireActivity()
-                    val intent = Intent(activity.applicationContext, SecondaryActivity::class.java)
-                    intent.putExtra("fragment", SecondaryActivity.STORAGE_BROWSER)
-                    startActivity(intent)
-                    activity.setResult(RESULT_RESTART)
+                    UiTools.snacker(requireActivity(), getString(R.string.mx_ml_busy_browse_anyway))
                 }
+                val activity = requireActivity()
+                val intent = Intent(activity.applicationContext, SecondaryActivity::class.java)
+                intent.putExtra("fragment", SecondaryActivity.STORAGE_BROWSER)
+                startActivity(intent)
+                activity.setResult(RESULT_RESTART)
                 return true
             }
             "ui_category" -> loadFragment(PreferencesUi())

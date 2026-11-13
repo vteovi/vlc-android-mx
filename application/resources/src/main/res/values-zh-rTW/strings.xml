@@ -544,6 +544,7 @@
     <string name="mx_invert_selection">反選</string>
     <string name="mx_folder_banned">「%1$s」已從媒體庫移除</string>
     <string name="mx_folder_unbanned">「%1$s」已重新加入媒體庫</string>
+    <string name="mx_ml_busy_browse_anyway">媒體庫正在掃描，這裡做的改動會排隊，掃描結束後生效</string>
     <string name="hidden_videos_added">已把 %1$d 個隱藏資料夾加入媒體庫，掃描完成後影片會出現在「影片」頁面</string>
     <string name="hidden_videos_removed">已從媒體庫移除 %1$d 個隱藏資料夾</string>
     <string name="hidden_videos_none">沒有找到包含影片的隱藏資料夾</string>
