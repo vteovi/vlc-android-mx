@@ -231,6 +231,9 @@ class MxGestureDelegate(
 
     fun isControlsVisible() = enabled && controls.isVisible()
 
+    /** Keeps the HUD clear of the system status bar while it is visible. */
+    fun setStatusBarShown(shown: Boolean) = controls.setStatusBarShown(shown)
+
     fun hideControls() = controls.hide()
 
     /** Short centred feedback used by the MX control buttons (ratio, rotation, …). */

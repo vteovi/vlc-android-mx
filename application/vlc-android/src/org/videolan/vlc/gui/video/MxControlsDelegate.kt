@@ -23,7 +23,9 @@ import android.os.Handler
 import android.os.Looper
 import android.support.v4.media.session.PlaybackStateCompat
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.SeekBar
@@ -32,6 +34,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.ViewStubCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.tools.Settings
 import org.videolan.tools.Settings.autoRotateFollowsSystem
@@ -95,8 +99,20 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     private val forwardLabel: TextView = root.findViewById(R.id.mx_forward_label)
 
     private val bars by lazy(LazyThreadSafetyMode.NONE) { arrayOf(topBar, topActions, bottomBar) }
+    /**
+     * Dark strip behind the status bar: without it the white clock / battery icons sit directly on
+     * the picture and become unreadable on bright scenes.
+     */
+    private val statusScrim: View = View(player).apply {
+        setBackgroundColor(0x66000000)
+        visibility = View.GONE
+    }
     private var mxEnabled = true
     private var tracking = false
+    /** True while the system status bar is drawn over the player (see PLAYBACK_STATUS_BAR). */
+    private var statusBarShown = false
+    /** Last reported status bar height, in pixels; 0 until the insets are dispatched. */
+    private var statusBarInset = 0
     private var lastCustomRatio = "9:16"
     /** Step used by the rewind / forward buttons, kept in sync with the stock jump delay. */
     private var jumpDelay = 10
@@ -125,6 +141,47 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         root.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
             if (bottom != oldBottom) layoutTopActions()
         }
+        // This layer is a sibling of the stock HUD container, so it never receives the padding
+        // that fitsSystemWindows gives the stock overlay: track the status bar height ourselves.
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+            if (top != statusBarInset) {
+                statusBarInset = top
+                applyStatusBarInset()
+            }
+            insets
+        }
+        root.requestApplyInsets()
+        (root as? FrameLayout)?.addView(statusScrim, 0,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, Gravity.TOP))
+    }
+
+    /**
+     * Pushes the whole HUD below the system status bar while it is visible, so the title bar and
+     * the clock / battery icons never overlap. The [MxControlsDelegate] keeps the inset itself
+     * because [VideoPlayerActivity] only tells it whether the bar is up.
+     */
+    fun setStatusBarShown(shown: Boolean) {
+        if (statusBarShown == shown) return
+        statusBarShown = shown
+        applyStatusBarInset()
+    }
+
+    private fun applyStatusBarInset() {
+        val target = if (statusBarShown) statusBarInset else 0
+        if (root.paddingTop != target) {
+            root.setPadding(root.paddingLeft, target, root.paddingRight, root.paddingBottom)
+            // The action row is anchored on the title bar, so re-fit it after the shift.
+            root.post { layoutTopActions() }
+        }
+        val params = statusScrim.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (params.height != target) {
+            params.height = target
+            statusScrim.layoutParams = params
+        }
+        statusScrim.visibility = if (target > 0) View.VISIBLE else View.GONE
+        // The root padding pushes every child down; pull the strip back over the status bar.
+        statusScrim.translationY = -root.paddingTop.toFloat()
     }
 
     /**

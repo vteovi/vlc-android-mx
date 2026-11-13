@@ -77,7 +77,6 @@ import org.videolan.tools.KEY_PLAYBACK_SPEED_VIDEO_GLOBAL
 import org.videolan.tools.SCREENSHOT_MODE
 import org.videolan.tools.SHOW_ORIENTATION_BUTTON
 import org.videolan.tools.Settings
-import org.videolan.tools.Settings.playbackStatusBarMode
 import org.videolan.tools.VIDEO_TRANSITION_SHOW
 import org.videolan.tools.dp
 import org.videolan.tools.formatRateString
@@ -411,11 +410,12 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
     fun dimStatusBar(dim: Boolean) {
         if (player.isNavMenu) return
 
-        // MX: in "always show the status bar" mode, immersive playback must not hide it.
-        if (dim && player.playbackStatusBarMode == 2) {
-            player.applyPlaybackStatusBar(true)
+        // MX: the HUD layer owns the status bar (PLAYBACK_STATUS_BAR). Forcing immersive mode here
+        // would fight it, leaving the HUD with a blank gap where the status bar was.
+        if (player.isMxControlsEnabled()) {
             playerUiContainer.setPadding(0, 0, 0, 0)
             playerUiContainer.fitsSystemWindows = !player.isLocked
+            player.refreshPlaybackStatusBar()
             return
         }
 

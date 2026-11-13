@@ -967,6 +967,9 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             if (VlcMigrationHelper.isKitKatOrLater) flags = flags or View.SYSTEM_UI_FLAG_IMMERSIVE
             decor.systemUiVisibility = flags
         }
+        // The MX HUD is laid out as a sibling of the stock overlay, so it has to be told to make
+        // room for the status bar itself (see MxControlsDelegate.setStatusBarShown).
+        if (::mxGestureDelegate.isInitialized) mxGestureDelegate.setStatusBarShown(visible)
     }
 
     /** MX: re-apply the status bar policy, used after the related setting was changed. */
