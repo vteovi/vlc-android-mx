@@ -47,6 +47,7 @@ import org.videolan.medialibrary.interfaces.media.MediaWrapper
 import org.videolan.resources.AndroidDevices
 import org.videolan.resources.KEY_ANIMATED
 import org.videolan.resources.KEY_FOLDER
+import org.videolan.resources.KEY_FOLDER_PATH
 import org.videolan.resources.KEY_GROUP
 import org.videolan.resources.util.applyOverscanMargin
 import org.videolan.resources.util.parcelable
@@ -215,6 +216,11 @@ class SecondaryActivity : ContentActivity(), IDialogManager {
                     )
                 }
             }
+            VIDEO_FOLDER_CONTENT -> {
+                fragment = VideoGridFragment().apply {
+                    arguments = bundleOf(KEY_FOLDER_PATH to intent.getStringExtra(KEY_FOLDER_PATH))
+                }
+            }
             STORAGE_BROWSER, STORAGE_BROWSER_ONBOARDING -> {
                 fragment = MLStorageBrowserFragment.newInstance(id == STORAGE_BROWSER_ONBOARDING)
                 setResult(RESULT_RESTART)
@@ -242,6 +248,7 @@ class SecondaryActivity : ContentActivity(), IDialogManager {
         const val STREAMS = "streams"
         const val HISTORY = "history"
         const val VIDEO_GROUP_LIST = "videoGroupList"
+        const val VIDEO_FOLDER_CONTENT = "videoFolderContent"
         const val STORAGE_BROWSER = "storage_browser"
         const val STORAGE_BROWSER_ONBOARDING = "storage_browser_onboarding"
         const val FILE_BROWSER = "file_browser"

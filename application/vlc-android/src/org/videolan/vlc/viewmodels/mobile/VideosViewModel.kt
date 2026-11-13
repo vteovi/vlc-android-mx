@@ -48,7 +48,7 @@ import org.videolan.vlc.providers.medialibrary.VideosProvider
 import org.videolan.vlc.util.FastVideoIndex
 import org.videolan.vlc.viewmodels.MedialibraryViewModel
 
-class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Folder?, val group: VideoGroup?) : MedialibraryViewModel(context) {
+class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Folder?, val group: VideoGroup?, val folderPath: String? = null) : MedialibraryViewModel(context) {
 
     var groupingType = type
         private set
@@ -69,7 +69,7 @@ class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Fol
     }
 
     private fun loadProvider(): MedialibraryProvider<out MediaLibraryItem> = when (groupingType) {
-        VideoGroupingType.NONE -> VideosProvider(folder, group, context, this)
+        VideoGroupingType.NONE -> VideosProvider(folder, group, context, this, folderPath)
         VideoGroupingType.FOLDER -> FoldersProvider(context, this, Folder.TYPE_FOLDER_VIDEO)
         VideoGroupingType.NAME -> VideoGroupsProvider(context, this)
     }
@@ -110,10 +110,10 @@ class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Fol
         }
     }
 
-    class Factory(val context: Context, private val groupingType: VideoGroupingType, val folder: Folder? = null, val group: VideoGroup? = null) : ViewModelProvider.NewInstanceFactory() {
+    class Factory(val context: Context, private val groupingType: VideoGroupingType, val folder: Folder? = null, val group: VideoGroup? = null, val folderPath: String? = null) : ViewModelProvider.NewInstanceFactory() {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
-            return VideosViewModel(context.applicationContext, groupingType, folder, group) as T
+            return VideosViewModel(context.applicationContext, groupingType, folder, group, folderPath) as T
         }
     }
 
@@ -282,5 +282,5 @@ enum class VideoGroupingType {
     NONE, FOLDER, NAME
 }
 
-internal fun VideoGridFragment.getViewModel(type: VideoGroupingType = VideoGroupingType.NONE, folder: Folder?, group: VideoGroup?) = ViewModelProvider(requireActivity(), VideosViewModel.Factory(requireContext(), type, folder, group))[VideosViewModel::class.java]
+internal fun VideoGridFragment.getViewModel(type: VideoGroupingType = VideoGroupingType.NONE, folder: Folder?, group: VideoGroup?, folderPath: String? = null) = ViewModelProvider(requireActivity(), VideosViewModel.Factory(requireContext(), type, folder, group, folderPath))[VideosViewModel::class.java]
 

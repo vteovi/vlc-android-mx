@@ -76,6 +76,7 @@ import org.videolan.resources.AppContextProvider
 import org.videolan.resources.CRASH_HAPPENED
 import org.videolan.resources.CRASH_ML_CTX
 import org.videolan.resources.CRASH_ML_MSG
+import org.videolan.resources.EXTRA_DEFER_BUILD
 import org.videolan.resources.EXTRA_PARSE
 import org.videolan.resources.EXTRA_PATH
 import org.videolan.resources.EXTRA_REMOVE_DEVICE
@@ -105,6 +106,13 @@ import org.videolan.vlc.util.scanAllowed
 
 private const val TAG = "VLC/MediaParsingService"
 
+/**
+ * How long a first build waits before walking the storage. Nothing on screen needs the media
+ * library any more (the video list is read from the system index), so the launch stays untouched
+ * and the pass starts once the app has settled.
+ */
+private const val FIRST_BUILD_DELAY = 20_000L
+
 class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
 
     private val dispatcher = ServiceLifecycleDispatcher(this)
@@ -116,6 +124,12 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
     private var currentDiscovery: String? = null
     @Volatile private var lastNotificationTime = 0L
     @Volatile private var scanActivated = false
+
+    /** First build of a fresh install: waited for and kept out of the UI. */
+    private var deferFirstBuild = false
+
+    /** Do not post the scan notification nor the progress for this pass. */
+    private var silentScan = false
 
     private val settings by lazy { Settings.getInstance(this) }
 
@@ -170,7 +184,6 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
         dispatcher.onServicePreSuperOnCreate()
         super.onCreate()
         NotificationHelper.createNotificationChannels(applicationContext)
-        if (AndroidUtil.isOOrLater) forceForeground()
         medialibrary = Medialibrary.getInstance()
         medialibrary.addDeviceDiscoveryCb(this@MediaParsingService)
         val filter = IntentFilter()
@@ -213,9 +226,14 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A first build is started with a plain startService so that opening the app shows no
+        // notification and no scanning state at all; every other start keeps the foreground
+        // contract Android 8+ expects.
+        deferFirstBuild = intent?.getBooleanExtra(EXTRA_DEFER_BUILD, false) == true
+        if (!deferFirstBuild) silentScan = false
         // Set 1s delay before displaying scan icon
         // Except for Android 8+ which expects startForeground immediately
-        if (AndroidUtil.isOOrLater) forceForeground()
+        if (AndroidUtil.isOOrLater && !deferFirstBuild) forceForeground()
         if (lastNotificationTime <= 0L) lastNotificationTime = if (AndroidUtil.isOOrLater) 0L else System.currentTimeMillis()
         super.onStartCommand(intent, flags, startId)
         dispatcher.onServicePreSuperOnStart()
@@ -323,8 +341,14 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
         checkNewDevicesForDialog(context, parse, removeDevices)
         if (upgrade) medialibrary.forceParserRetry()
         medialibrary.start()
-        if (parse) startScan(shouldInit, upgrade)
-        else exitCommand()
+        if (parse) {
+            if (deferFirstBuild) {
+                silentScan = true
+                deferFirstBuild = false
+                delay(FIRST_BUILD_DELAY)
+            }
+            startScan(shouldInit, upgrade)
+        } else exitCommand()
     }
 
     private suspend fun addDevices(context: Context, removeDevices: Boolean) {
@@ -416,6 +440,11 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
     }
 
     private suspend fun showNotification(done:Int, scheduled: Int) {
+        if (silentScan) {
+            // Deferred first build: the user did not ask for this pass, don't advertise it.
+            showProgress(-1F, "")
+            return
+        }
         val currentTime = System.currentTimeMillis()
         lastNotificationTime = currentTime
         val parsing = (done.toFloat() / scheduled.toFloat() * 100F)

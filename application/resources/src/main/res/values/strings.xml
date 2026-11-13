@@ -577,6 +577,9 @@
     <string name="mx_selection_nothing_to_do">Nothing to change in this list</string>
     <string name="mx_fast_video_scan">Instant video list</string>
     <string name="mx_fast_video_scan_summary">List videos straight from the Android media index, so they show up without waiting for the media library scan. Turn this off to wait for the library list instead</string>
+    <string name="mx_video_folders">Folders</string>
+    <string name="mx_folder_videos_count">%1$d video(s)</string>
+    <string name="mx_no_video_folders">No folder with videos found</string>
     <string name="hidden_videos_added">%1$d hidden folder(s) added to the media library, their videos appear in the Video tab once the scan is done</string>
     <string name="hidden_videos_removed">%1$d hidden folder(s) removed from the media library</string>
     <string name="hidden_videos_none">No hidden folder with videos found</string>

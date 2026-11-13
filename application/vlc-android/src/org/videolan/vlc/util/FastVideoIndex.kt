@@ -50,6 +50,12 @@ object FastVideoIndex {
      */
     private data class Entry(val path: String, val title: String, val duration: Long, val modified: Long)
 
+    /**
+     * One directory that directly contains videos, as seen by the system index. This is what the
+     * folder tab lists, so browsing by folder does not need the VLC media library at all.
+     */
+    data class FolderEntry(val path: String, val name: String, val count: Int, val lastModified: Long, val sample: String)
+
     private var cached: List<Entry>? = null
     private var cachedAt = 0L
 
@@ -65,19 +71,41 @@ object FastVideoIndex {
      */
     fun isWanted(): Boolean = Settings.fastVideoScan
 
-    fun count(context: Context, filter: String?): Int {
-        return list(context, filter).size
+    fun count(context: Context, filter: String?, folderPath: String? = null): Int {
+        return list(context, filter, folderPath = folderPath).size
     }
 
-    fun page(context: Context, sort: Int, desc: Boolean, filter: String?, size: Int, start: Int): Array<MediaWrapper> {
-        val entries = list(context, filter, sort, desc)
+    fun page(context: Context, sort: Int, desc: Boolean, filter: String?, size: Int, start: Int, folderPath: String? = null): Array<MediaWrapper> {
+        val entries = list(context, filter, sort, desc, folderPath)
         if (start >= entries.size) return emptyArray()
         val end = (start + size).coerceAtMost(entries.size)
         return entries.subList(start, end).map { toWrapper(it) }.toTypedArray()
     }
 
-    fun all(context: Context, sort: Int, desc: Boolean, filter: String?): Array<MediaWrapper> {
-        return list(context, filter, sort, desc).map { toWrapper(it) }.toTypedArray()
+    fun all(context: Context, sort: Int, desc: Boolean, filter: String?, folderPath: String? = null): Array<MediaWrapper> {
+        return list(context, filter, sort, desc, folderPath).map { toWrapper(it) }.toTypedArray()
+    }
+
+    /**
+     * Every directory holding videos, sorted by name. Folders are derived from the indexed paths,
+     * so no storage walk is needed here either.
+     */
+    fun folders(context: Context, filter: String? = null): List<FolderEntry> {
+        val needle = filter?.takeIf { it.isNotEmpty() }
+        val grouped = LinkedHashMap<String, MutableList<Entry>>()
+        for (entry in source(context)) {
+            val parent = File(entry.path).parent ?: continue
+            grouped.getOrPut(parent) { ArrayList() }.add(entry)
+        }
+        val result = ArrayList<FolderEntry>(grouped.size)
+        for ((path, videos) in grouped) {
+            val name = File(path).name.takeIf { it.isNotEmpty() } ?: path
+            if (needle != null && !name.contains(needle, true) && !path.contains(needle, true)) continue
+            val newest = videos.maxByOrNull { it.modified }
+            result.add(FolderEntry(path, name, videos.size, newest?.modified ?: 0L, newest?.path ?: videos[0].path))
+        }
+        result.sortWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+        return result
     }
 
     fun invalidate() {
@@ -105,13 +133,16 @@ object FastVideoIndex {
         return media
     }
 
-    private fun list(context: Context, filter: String?, sort: Int = Medialibrary.SORT_DEFAULT, desc: Boolean = false): List<Entry> {
+    private fun list(context: Context, filter: String?, sort: Int = Medialibrary.SORT_DEFAULT, desc: Boolean = false, folderPath: String? = null): List<Entry> {
         val videos = source(context)
         val needle = filter?.takeIf { it.isNotEmpty() }
         val filtered = if (needle === null) videos else videos.filter { entry ->
             entry.title.contains(needle, true) || entry.path.contains(needle, true)
         }
-        val sorted = filtered.sortedWith(comparator(sort))
+        // The folder view shows the videos of one directory, exactly like a file manager does:
+        // subfolders keep their own entry in the folder tab.
+        val scoped = if (folderPath === null) filtered else filtered.filter { File(it.path).parent == folderPath }
+        val sorted = scoped.sortedWith(comparator(sort))
         return if (desc) sorted.asReversed() else sorted
     }
 

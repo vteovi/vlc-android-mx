@@ -549,6 +549,9 @@
     <string name="mx_selection_nothing_to_do">当前列表没有需要改动的项</string>
     <string name="mx_fast_video_scan">快速列出视频（系统索引）</string>
     <string name="mx_fast_video_scan_summary">直接从 Android 的媒体索引读视频，打开就能看到，不必等媒体库扫描。关闭后改为等待媒体库自己的列表</string>
+    <string name="mx_video_folders">文件夹</string>
+    <string name="mx_folder_videos_count">%1$d 个视频</string>
+    <string name="mx_no_video_folders">没有找到包含视频的文件夹</string>
     <string name="hidden_videos_added">已把 %1$d 个隐藏文件夹加入媒体库，扫描完成后视频会出现在「视频」页面</string>
     <string name="hidden_videos_removed">已从媒体库移除 %1$d 个隐藏文件夹</string>
     <string name="hidden_videos_none">没有找到包含视频的隐藏文件夹</string>

@@ -90,11 +90,26 @@ fun Context.startMedialibrary(firstRun: Boolean = false, upgrade: Boolean = fals
         if (dbExists(coroutineContextProvider)) prefs.putSingle(KEY_MEDIALIBRARY_SCAN, ML_SCAN_ON)
     }
     val intent = Intent(ACTION_INIT).setClassName(applicationContext, MEDIAPARSING_SERVICE)
-    launchForeground(intent
-            .putExtra(EXTRA_FIRST_RUN, firstRun)
+    val parseEnabled = parse && scanOpt != ML_SCAN_OFF && canReadStorage(this@startMedialibrary)
+    intent.putExtra(EXTRA_FIRST_RUN, firstRun)
             .putExtra(EXTRA_UPGRADE, upgrade)
             .putExtra(EXTRA_REMOVE_DEVICE, removeDevices)
-            .putExtra(EXTRA_PARSE, parse && scanOpt != ML_SCAN_OFF && canReadStorage(this@startMedialibrary)))
+            .putExtra(EXTRA_PARSE, parseEnabled)
+    // The very first launch has no media library database yet, and building it means walking the
+    // whole storage with libVLC (minutes on a big collection). The video list is read from the
+    // system index, so there is nothing to gain by doing that at launch: start the service without
+    // the foreground contract and let it wait for the app to settle before discovering.
+    val deferBuild = parseEnabled && Settings.fastVideoScan && !dbExists(coroutineContextProvider)
+    if (deferBuild) {
+        intent.putExtra(EXTRA_DEFER_BUILD, true)
+        try {
+            ContextCompat.startService(this@startMedialibrary, intent)
+        } catch (e: Exception) {
+            Log.w("MediaParsingService", "Can't start the deferred first build", e)
+        }
+    } else {
+        launchForeground(intent)
+    }
 }
 
 suspend fun Context.dbExists(coroutineContextProvider: CoroutineContextProvider = CoroutineContextProvider()) = withContext(coroutineContextProvider.IO) {

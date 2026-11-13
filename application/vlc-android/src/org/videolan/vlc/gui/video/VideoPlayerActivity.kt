@@ -159,7 +159,6 @@ import org.videolan.tools.KEY_VIDEO_MATCH_FRAME_RATE
 import org.videolan.tools.LAST_LOCK_ORIENTATION
 import org.videolan.tools.LOCK_USE_SENSOR
 import org.videolan.tools.POPUP_FORCE_LEGACY
-import org.videolan.tools.PREF_TIPS_SHOWN
 import org.videolan.tools.SAVE_BRIGHTNESS
 import org.videolan.tools.SCREENSHOT_MODE
 import org.videolan.tools.SCREEN_ORIENTATION
@@ -618,12 +617,9 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         isTv = Settings.showTvUi
         if (displayManager.isPrimary) {
             // Orientation
-            // Tips
-            if (!BuildConfig.DEBUG && !isTv && !settings.getBoolean(PREF_TIPS_SHOWN, false)
-                && !isBenchmark
-            ) {
-                tipsDelegate.init()
-            }
+            // The old "video player tips" overlay is gone: it described the stock VLC controls,
+            // and the MX-style controls used here have different buttons and gestures, so it only
+            // showed wrong instructions. Nothing to init here any more.
         }
 
 

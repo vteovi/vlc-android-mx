@@ -57,6 +57,7 @@ import org.videolan.resources.GROUP_VIDEOS_FOLDER
 import org.videolan.resources.GROUP_VIDEOS_NAME
 import org.videolan.resources.GROUP_VIDEOS_NONE
 import org.videolan.resources.KEY_FOLDER
+import org.videolan.resources.KEY_FOLDER_PATH
 import org.videolan.resources.KEY_GROUP
 import org.videolan.resources.KEY_GROUPING
 import org.videolan.resources.MOVIEPEDIA_ACTIVITY
@@ -162,6 +163,7 @@ import org.videolan.vlc.util.showParentFolder
 import org.videolan.vlc.viewmodels.mobile.VideoGroupingType
 import org.videolan.vlc.viewmodels.mobile.VideosViewModel
 import org.videolan.vlc.viewmodels.mobile.getViewModel
+import java.io.File
 
 private const val TAG = "VLC/VideoListFragment"
 
@@ -202,18 +204,21 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
             else arguments?.parcelable(KEY_FOLDER)
             val parentGroup = if (savedInstanceState != null) savedInstanceState.parcelable<VideoGroup>(KEY_GROUP)
                     else arguments?.parcelable(KEY_GROUP)
+            // Opened from the folder tab: the list is scoped to one directory, still read from the
+            // system index, so no media library folder object is involved.
+            val folderPath = arguments?.getString(KEY_FOLDER_PATH)
             // Folder trees and video groups only exist in the VLC media library. While the fast
             // list is enabled the page always opens flat, and both options are hidden from the
             // display settings (see onOptionsItemSelected), so the system index is really used.
             val storedGrouping = Settings.getInstance(requireContext()).getString(KEY_GROUP_VIDEOS, null)
             val grouping = when {
-                parentGroup != null || folder != null -> VideoGroupingType.NONE
+                folderPath != null || parentGroup != null || folder != null -> VideoGroupingType.NONE
                 Settings.fastVideoScan -> VideoGroupingType.NONE
                 storedGrouping == GROUP_VIDEOS_FOLDER -> VideoGroupingType.FOLDER
                 storedGrouping == GROUP_VIDEOS_NAME -> VideoGroupingType.NAME
                 else -> VideoGroupingType.NONE
             }
-            viewModel = getViewModel(grouping, folder, parentGroup)
+            viewModel = getViewModel(grouping, folder, parentGroup, folderPath)
             setDataObservers()
             EventTools.getInstance().lastThumb.observe(this, thumbObs)
             videoListAdapter.events.onEach { it.process() }.launchWhenStarted(lifecycleScope)
@@ -429,7 +434,7 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
     }
 
     override fun getTitle() = when(viewModel.groupingType) {
-        VideoGroupingType.NONE -> viewModel.folder?.displayTitle ?: viewModel.group?.displayTitle
+        VideoGroupingType.NONE -> viewModel.folderPath?.let { File(it).name } ?: viewModel.folder?.displayTitle ?: viewModel.group?.displayTitle
         ?: getString(R.string.videos)
         VideoGroupingType.FOLDER -> getString(R.string.videos_folders_title)
         VideoGroupingType.NAME -> getString(R.string.videos_groups_title)
