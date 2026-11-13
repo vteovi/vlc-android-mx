@@ -103,7 +103,7 @@ fun Context.startMedialibrary(firstRun: Boolean = false, upgrade: Boolean = fals
     if (deferBuild) {
         intent.putExtra(EXTRA_DEFER_BUILD, true)
         try {
-            ContextCompat.startService(this@startMedialibrary, intent)
+            startService(intent)
         } catch (e: Exception) {
             Log.w("MediaParsingService", "Can't start the deferred first build", e)
         }
