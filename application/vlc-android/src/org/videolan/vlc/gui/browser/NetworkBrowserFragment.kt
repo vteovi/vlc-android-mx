@@ -30,15 +30,12 @@ import android.view.View
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.videolan.libvlc.Dialog
 import org.videolan.medialibrary.interfaces.media.MediaWrapper
 import org.videolan.tools.NetworkMonitor
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.SecondaryActivity
-import org.videolan.vlc.gui.helpers.MedialibraryUtils
 import org.videolan.vlc.gui.view.EmptyLoadingState
 import org.videolan.vlc.util.ContextOption
 import org.videolan.vlc.util.ContextOption.*
@@ -86,14 +83,14 @@ class NetworkBrowserFragment : BaseBrowserFragment(), IDialogManager {
         super.onPrepareOptionsMenu(menu)
         val item = menu.findItem(R.id.ml_menu_save)
         item.isVisible = !isRootDirectory
+        // A remote folder must never be indexed by the media library: the parser opens it through
+        // libVLC's SMB access module and crashes inside libsmb2 (SIGSEGV in vlc_module_load while
+        // probing the module). Browsing and playing a share keep working, only indexing is gone.
+        menu.findItem(R.id.ml_menu_scan)?.isVisible = false
         lifecycleScope.launchWhenStarted {
             val isFavorite = mrl != null && browserFavRepository.browserFavExists(mrl!!.toUri())
             item.setIcon(if (isFavorite) R.drawable.ic_fav_remove else R.drawable.ic_fav_add)
             item.setTitle(if (isFavorite) R.string.favorites_remove else R.string.favorites_add)
-            mrl?.let {
-                val isScanned = withContext(Dispatchers.IO) { MedialibraryUtils.isScanned(it) }
-                menu.findItem(R.id.ml_menu_scan)?.isVisible = !isRootDirectory && it.startsWith("smb") && !isScanned
-            }
         }
 
     }

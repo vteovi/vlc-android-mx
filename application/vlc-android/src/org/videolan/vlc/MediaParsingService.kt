@@ -341,6 +341,8 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
         checkNewDevicesForDialog(context, parse, removeDevices)
         if (upgrade) medialibrary.forceParserRetry()
         medialibrary.start()
+        // Remote entries added by older versions are dropped before any scan can reach them.
+        purgeRemoteEntries()
         if (parse) {
             if (deferFirstBuild) {
                 silentScan = true
@@ -350,6 +352,38 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
             startScan(shouldInit, upgrade)
         } else exitCommand()
     }
+
+    /**
+     * Network shares are not supported by the media library: parsing one opens it through
+     * libVLC's SMB access module, where libsmb2 crashes (SIGSEGV around vlc_module_load while
+     * probing the module). The "add to library" action is gone since v3.22; this drops the
+     * entries older versions stored, so that no scan can reach them again.
+     */
+    private fun purgeRemoteEntries() {
+        val ml = medialibrary
+        for (path in ml.foldersList.orEmpty().filterNot { it.isLocalPath() }) {
+            Log.w(TAG, "Removing remote folder from the media library: $path")
+            try {
+                ml.removeFolder(path)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to remove remote folder $path", t)
+            }
+        }
+        for (device in ml.devices.orEmpty().filterNot { it.isLocalPath() }) {
+            Log.w(TAG, "Remote device still registered in the media library: $device")
+        }
+        for (path in ml.foldersList.orEmpty().filterNot { it.isLocalPath() }) {
+            Log.w(TAG, "Banning remote folder: $path")
+            try {
+                ml.banFolder(path)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to ban remote folder $path", t)
+            }
+        }
+    }
+
+    private fun String.isLocalPath() =
+            isEmpty() || startsWith("/") || startsWith("file") || startsWith("content")
 
     private suspend fun addDevices(context: Context, removeDevices: Boolean) {
         if (removeDevices) medialibrary.deleteRemovableDevices()
