@@ -727,7 +727,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
                 + (if (settings.getBoolean(ENABLE_SWIPE_SEEK, true)) TOUCH_FLAG_SWIPE_SEEK else 0)
                 + (if (settings.getString(SCREENSHOT_MODE, "0") in arrayOf("2", "3")) TOUCH_FLAG_SCREENSHOT else 0)
                 + (if (settings.getBoolean(ENABLE_SCALE_GESTURE, true)) TOUCH_FLAG_SCALE else 0)
-                + (if (settings.getBoolean(ENABLE_FASTPLAY, false) && PlaybackService.renderer.value == null) TOUCH_FLAG_FASTPLAY else 0))
+                + (if (settings.getBoolean(ENABLE_FASTPLAY, true) && PlaybackService.renderer.value == null) TOUCH_FLAG_FASTPLAY else 0))
     } else 0
 
     override fun fireDialog(dialog: Dialog) {
@@ -2646,7 +2646,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             touchDelegate.touchControls = generateTouchFlags()
             overlayDelegate.updateScreenshotButton()
         }
-        ENABLE_SEEK_BUTTONS -> overlayDelegate.seekButtons = settings.getBoolean(ENABLE_SEEK_BUTTONS, false)
+        ENABLE_SEEK_BUTTONS -> overlayDelegate.seekButtons = settings.getBoolean(ENABLE_SEEK_BUTTONS, true)
         else -> {
             if (key.startsWith("mx_") && ::mxGestureDelegate.isInitialized) mxGestureDelegate.reloadSettings()
             Unit

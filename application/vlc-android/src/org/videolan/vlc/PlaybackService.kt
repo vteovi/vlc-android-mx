@@ -1035,7 +1035,7 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
         val mw = playlistManager.getCurrentMedia()
         if (mw != null) {
             val coverOnLockscreen = settings.getBoolean(LOCKSCREEN_COVER, true)
-            val seekInCompactView = settings.getBoolean(SHOW_SEEK_IN_COMPACT_NOTIFICATION, false)
+            val seekInCompactView = settings.getBoolean(SHOW_SEEK_IN_COMPACT_NOTIFICATION, true)
             val playing = isPlaying
             val sessionToken = mediaSession.sessionToken
             val ctx = this@PlaybackService

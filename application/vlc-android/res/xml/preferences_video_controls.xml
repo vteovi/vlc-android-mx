@@ -99,7 +99,7 @@
                 app:iconSpaceReserved="false"
                 app:singleLineTitle="false" />
         <CheckBoxPreference
-                android:defaultValue="false"
+                android:defaultValue="true"
                 android:key="enable_fastplay"
                 android:summary="@string/enable_tap_and_hold_fastplay_summary"
                 android:title="@string/enable_tap_and_hold_fastplay_title"
@@ -123,7 +123,7 @@
     <PreferenceCategory android:title="@string/player_controls"
             app:iconSpaceReserved="false">
         <CheckBoxPreference
-                android:defaultValue="false"
+                android:defaultValue="true"
                 android:key="enable_seek_buttons"
                 android:summary="@string/enable_seek_buttons_summary"
                 android:title="@string/enable_seek_buttons"
@@ -202,7 +202,7 @@
                 android:title="@string/mx_swipe_seek_title" />
 
         <ListPreference
-                android:defaultValue="screen"
+                android:defaultValue="overlay"
                 android:dependency="mx_swipe_seek"
                 android:entries="@array/mx_seek_preview_entries"
                 android:entryValues="@array/mx_seek_preview_values"

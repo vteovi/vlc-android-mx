@@ -83,7 +83,7 @@ class PreferencesVideoUITest: BasePreferenceUITest() {
     @Test
     fun checkShowSeekButtonSetting() {
         val key = ENABLE_SEEK_BUTTONS
-        checkToggleWorks(key, settings, default = false)
+        checkToggleWorks(key, settings, default = true)
     }
 
     @Test

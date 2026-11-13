@@ -124,7 +124,7 @@
                 android:title="@string/lockscreen_cover_title"/>
         <CheckBoxPreference
             app:singleLineTitle="false"
-            android:defaultValue="false"
+            android:defaultValue="true"
             android:key="show_seek_in_compact_notification"
             android:summary="@string/show_seek_in_compact_notif_summary"
             android:title="@string/show_seek_in_compact_notif_title"/>

@@ -119,9 +119,9 @@ class MxGestureDelegate(
 
     private var enabled = true
     private var allowSwipeSeek = true
-    private var seekPreviewMode = SEEK_PREVIEW_SCREEN
+    private var seekPreviewMode = SEEK_PREVIEW_OVERLAY
     private var allowDoubleTap = true
-    private var allowFastPlay = false
+    private var allowFastPlay = true
     private var allowPinchZoom = true
     private var allowLockGesture = true
 
@@ -248,7 +248,7 @@ class MxGestureDelegate(
         allowSwipeSeek = prefs.getBoolean(MX_SWIPE_SEEK, true)
         seekPreviewMode = readSeekPreviewMode(prefs)
         allowDoubleTap = prefs.getBoolean(MX_DOUBLE_TAP, true)
-        allowFastPlay = prefs.getBoolean(ENABLE_FASTPLAY, false)
+        allowFastPlay = prefs.getBoolean(ENABLE_FASTPLAY, true)
         allowPinchZoom = prefs.getBoolean(MX_PINCH_ZOOM, true)
         allowLockGesture = prefs.getBoolean(MX_LOCK_GESTURE, true)
         controls.setMxEnabled(enabled)
@@ -262,11 +262,11 @@ class MxGestureDelegate(
 
     /**
      * Older builds only had an on/off switch, so a switch that was turned off maps to "off" and
-     * everybody else gets the new direct-preview default.
+     * everybody else gets the thumbnail-overlay default (a small popup, not the full picture).
      */
     private fun readSeekPreviewMode(prefs: SharedPreferences): String {
         prefs.getString(MX_SEEK_PREVIEW_MODE, null)?.let { return it }
-        return if (prefs.getBoolean(MX_SEEK_PREVIEW, true)) SEEK_PREVIEW_SCREEN else SEEK_PREVIEW_OFF
+        return if (prefs.getBoolean(MX_SEEK_PREVIEW, true)) SEEK_PREVIEW_OVERLAY else SEEK_PREVIEW_OFF
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {

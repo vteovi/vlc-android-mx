@@ -11,7 +11,7 @@
 
         <CheckBoxPreference
                 app:singleLineTitle="false"
-                android:defaultValue="true"
+                android:defaultValue="false"
                 android:key="auto_rescan"
                 android:summary="@string/auto_rescan_summary"
                 android:title="@string/auto_rescan"/>

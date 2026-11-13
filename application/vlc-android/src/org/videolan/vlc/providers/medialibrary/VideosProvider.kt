@@ -33,6 +33,13 @@ import org.videolan.vlc.viewmodels.SortableModel
 
 class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Context, model: SortableModel) : MedialibraryProvider<MediaWrapper>(context, model){
 
+    init {
+        // A leftover "only favourites" state (it is persisted per sort key) would silently fall
+        // back to the media library, so the fast list always starts from the full collection.
+        // The stored value itself is kept, so turning the switch off restores the user's filter.
+        if (folder == null && group == null && FastVideoIndex.isWanted()) onlyFavorites = false
+    }
+
     override fun canSortByFileNameName() = true
     override fun canSortByDuration() = true
     override fun canSortByLastModified() = folder == null
@@ -43,7 +50,7 @@ class VideosProvider(val folder : Folder?, val group: VideoGroup?, context: Cont
      * The flat "All videos" list comes from the system index; the folder and group views still
      * need the library itself, and so does the favourites filter (a favourite is a library flag).
      */
-    private fun useFastScan() = folder === null && group === null && !onlyFavorites && FastVideoIndex.isWanted()
+    internal fun useFastScan() = folder === null && group === null && !onlyFavorites && FastVideoIndex.isWanted()
 
     override fun getTotalCount() = if (useFastScan()) FastVideoIndex.count(context, model.filterQuery) else if (model.filterQuery == null) when {
         folder !== null -> folder.mediaCount(Folder.TYPE_FOLDER_VIDEO)

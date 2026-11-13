@@ -605,7 +605,7 @@
 
     <string name="advanced_prefs_category">Advanced</string>
     <string name="auto_rescan">Auto rescan</string>
-    <string name="auto_rescan_summary">Automatically scan device for new or deleted media at application startup</string>
+    <string name="auto_rescan_summary">Rescan the VLC media library at startup. Slows the launch down: only favourites, groups and thumbnails depend on it, the video list is read from the system index</string>
     <string name="dump_media_db">Dump media database</string>
     <string name="dump_app_db">Dump app database</string>
     <string name="dump_media_db_summary">Copy database to internal storage root</string>
@@ -1474,7 +1474,7 @@
     <string name="mx_swipe_seek_title">Swipe to seek with preview</string>
     <string name="mx_swipe_seek_summary">Drag horizontally to preview a target time, release to jump</string>
     <string name="mx_seek_preview_title">Frame preview while seeking</string>
-    <string name="mx_seek_preview_summary">Direct preview pauses and moves the picture itself while you drag</string>
+    <string name="mx_seek_preview_summary">How the target frame is previewed while you drag</string>
     <string name="mx_seek_preview_screen">Direct preview (picture follows your finger)</string>
     <string name="mx_seek_preview_overlay">Small thumbnail popup</string>
     <string name="mx_seek_preview_none">Off (time only)</string>

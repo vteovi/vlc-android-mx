@@ -581,7 +581,7 @@ class VideoPlayerOverlayDelegate (private val player: VideoPlayerActivity) {
 
             val vsc = player.findViewById<ViewStubCompat>(R.id.player_hud_stub)
             if (vsc != null) {
-                seekButtons = player.settings.getBoolean(ENABLE_SEEK_BUTTONS, false)
+                seekButtons = player.settings.getBoolean(ENABLE_SEEK_BUTTONS, true)
                 vsc.setVisible()
                 hudBinding = DataBindingUtil.bind(player.findViewById(R.id.progress_overlay)) ?: return
                 hudBinding.player = player

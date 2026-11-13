@@ -577,7 +577,7 @@
 
     <string name="advanced_prefs_category">進階</string>
     <string name="auto_rescan">自動重新掃瞄</string>
-    <string name="auto_rescan_summary">在應用程式啟動時自動掃瞄裝置上新增或刪除的媒體</string>
+    <string name="auto_rescan_summary">啟動時重新走訪 VLC 媒體庫。會拖慢啟動；只影響收藏、群組與縮圖，影片清單讀取的是系統媒體庫</string>
     <string name="dump_media_db">傾印媒體資料庫</string>
     <string name="dump_app_db">傾印應用程式資料庫</string>
     <string name="dump_media_db_summary">複製資料庫到內部儲存空間根目錄</string>
@@ -1437,7 +1437,7 @@
     <string name="mx_swipe_seek_title">滑動跳轉並預覽</string>
     <string name="mx_swipe_seek_summary">橫向拖曳可預覽目標時間，放開後跳轉</string>
     <string name="mx_seek_preview_title">滑動時的畫面預覽</string>
-    <string name="mx_seek_preview_summary">直接預覽會暫停播放，讓畫面本身跟著手指跳動</string>
+    <string name="mx_seek_preview_summary">拖動時如何預覽目標畫面：小窗縮圖、直接預覽，或只顯示時間</string>
     <string name="mx_seek_preview_screen">直接預覽（畫面跟著跳）</string>
     <string name="mx_seek_preview_overlay">小窗縮圖</string>
     <string name="mx_seek_preview_none">關閉（只顯示時間）</string>

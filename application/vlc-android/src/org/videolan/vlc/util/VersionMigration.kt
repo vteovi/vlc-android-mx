@@ -38,21 +38,26 @@ import org.videolan.medialibrary.interfaces.media.Playlist
 import org.videolan.resources.AndroidDevices
 import org.videolan.resources.AndroidDevices.canUseSystemNightMode
 import org.videolan.resources.util.getFromMl
+import org.videolan.tools.ENABLE_FASTPLAY
+import org.videolan.tools.ENABLE_SEEK_BUTTONS
 import org.videolan.tools.KEY_APP_THEME
 import org.videolan.tools.KEY_CURRENT_EQUALIZER_ID
 import org.videolan.tools.KEY_CURRENT_MAJOR_VERSION
 import org.videolan.tools.KEY_CURRENT_SETTINGS_VERSION
 import org.videolan.tools.KEY_CURRENT_SETTINGS_VERSION_AFTER_LIBVLC_INSTANTIATION
+import org.videolan.tools.KEY_MEDIALIBRARY_AUTO_RESCAN
 import org.videolan.tools.KEY_PLAYBACK_SPEED_AUDIO_GLOBAL
 import org.videolan.tools.KEY_PLAYBACK_SPEED_AUDIO_GLOBAL_VALUE
 import org.videolan.tools.KEY_PLAYBACK_SPEED_VIDEO_GLOBAL
 import org.videolan.tools.KEY_PLAYBACK_SPEED_VIDEO_GLOBAL_VALUE
 import org.videolan.tools.KEY_SUBTITLES_COLOR
 import org.videolan.tools.KEY_VIDEO_CONFIRM_RESUME
+import org.videolan.tools.MX_SEEK_PREVIEW_MODE
 import org.videolan.tools.PLAYLIST_MODE_AUDIO
 import org.videolan.tools.PLAYLIST_MODE_VIDEO
 import org.videolan.tools.Preferences
 import org.videolan.tools.SCREENSHOT_MODE
+import org.videolan.tools.SHOW_SEEK_IN_COMPACT_NOTIFICATION
 import org.videolan.tools.Settings
 import org.videolan.tools.VIDEO_HUD_TIMEOUT
 import org.videolan.tools.coerceInOrDefault
@@ -70,7 +75,7 @@ import org.videolan.vlc.repository.EqualizerRepository
 import java.io.File
 import java.io.IOException
 
-private const val CURRENT_VERSION = 17
+private const val CURRENT_VERSION = 18
 private const val CURRENT_VERSION_LIBVLC = 1
 
 object VersionMigration {
@@ -154,6 +159,10 @@ object VersionMigration {
 
         if (lastVersion < 17) {
             migrateToVersion17(settings)
+        }
+
+        if (lastVersion < 18) {
+            migrateToVersion18(settings)
         }
 
         //Major version upgrade
@@ -495,6 +504,33 @@ object VersionMigration {
 
             } catch (_: ClassCastException) {
                 //Not a string. Safe to keep
+            }
+        }
+    }
+
+    /**
+     * Apply the new default control settings (thumbnail seek preview, fast play and seek buttons).
+     *
+     * Changing the `android:defaultValue` of a preference is a no-op on an upgraded install: the
+     * value is only written to SharedPreferences when the key is missing, and older builds already
+     * stored the previous defaults. This migration rewrites them once. A seek preview the user
+     * deliberately turned off is kept; only the previous "screen" default becomes "overlay".
+     */
+    private fun migrateToVersion18(settings: SharedPreferences) {
+        Log.i(this::class.java.simpleName, "Migrate to version 18: apply the new default control settings")
+        settings.edit {
+            if (!settings.getBoolean(ENABLE_FASTPLAY, false)) putBoolean(ENABLE_FASTPLAY, true)
+            if (!settings.getBoolean(ENABLE_SEEK_BUTTONS, false)) putBoolean(ENABLE_SEEK_BUTTONS, true)
+            if (settings.getString(MX_SEEK_PREVIEW_MODE, "screen") == "screen") {
+                putString(MX_SEEK_PREVIEW_MODE, "overlay")
+            }
+            if (!settings.getBoolean(SHOW_SEEK_IN_COMPACT_NOTIFICATION, false)) {
+                putBoolean(SHOW_SEEK_IN_COMPACT_NOTIFICATION, true)
+            }
+            // Startup should not walk the media library roots any more: the video list is served
+            // by the system index, and the library pass only refreshes favourites and thumbnails.
+            if (settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, true)) {
+                putBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, false)
             }
         }
     }

@@ -577,7 +577,7 @@
 
     <string name="advanced_prefs_category">高级</string>
     <string name="auto_rescan">自动重新扫描</string>
-    <string name="auto_rescan_summary">应用启动时，自动扫描设备中新增或删除的媒体文件</string>
+    <string name="auto_rescan_summary">启动时重新遍历 VLC 媒体库。会拖慢启动；只影响收藏、分组与缩略图，视频列表读取的是系统媒体库</string>
     <string name="dump_media_db">转储媒体数据库</string>
     <string name="dump_app_db">转储应用数据库</string>
     <string name="dump_media_db_summary">将数据库复制到内部存储根目录</string>
@@ -1438,7 +1438,7 @@
     <string name="mx_swipe_seek_title">滑动跳转并预览</string>
     <string name="mx_swipe_seek_summary">横向拖动可预览目标时间，松手后跳转</string>
     <string name="mx_seek_preview_title">滑动时的画面预览</string>
-    <string name="mx_seek_preview_summary">直接预览会暂停播放，让画面本身跟着手指跳动</string>
+    <string name="mx_seek_preview_summary">拖动时如何预览目标画面：小窗缩略图、直接预览，或只显示时间</string>
     <string name="mx_seek_preview_screen">直接预览（画面跟着跳）</string>
     <string name="mx_seek_preview_overlay">小窗缩略图</string>
     <string name="mx_seek_preview_none">关闭（只显示时间）</string>

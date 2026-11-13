@@ -121,7 +121,7 @@ class MainActivity : ContentActivity(),
         /* Set up the action bar */
         prepareActionBar()
         /* Reload the latest preferences */
-        scanNeeded = savedInstanceState == null && settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, true)
+        scanNeeded = savedInstanceState == null && settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, false)
         mediaLibrary = Medialibrary.getInstance()
 
         if (!NotificationPermissionManager.launchIfNeeded(this)) {

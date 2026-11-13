@@ -373,7 +373,7 @@ class MediaParsingService : LifecycleService(), DevicesDiscoveryCb {
                 //refresh has already be done in [MediaParsingService.initMedialib]
                 exitCommand()
             }
-            settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, true) -> reload(null)
+            settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, false) -> reload(null)
             else -> exitCommand()
         }
     }

@@ -55,6 +55,19 @@ class VideosViewModel(context: Context, type: VideoGroupingType, val folder: Fol
     var provider = loadProvider()
         private set
 
+    /** True when the current list is served by the system index instead of the VLC media library. */
+    val usesSystemIndex: Boolean
+        get() = (provider as? VideosProvider)?.useFastScan() == true
+
+    /**
+     * Pull-to-refresh in system-index mode: the system already tracks file changes, so there is
+     * nothing to rescan, only the cached cursor needs to be dropped and the list reloaded.
+     */
+    fun refreshFromSystemIndex() {
+        FastVideoIndex.invalidate()
+        refresh()
+    }
+
     private fun loadProvider(): MedialibraryProvider<out MediaLibraryItem> = when (groupingType) {
         VideoGroupingType.NONE -> VideosProvider(folder, group, context, this)
         VideoGroupingType.FOLDER -> FoldersProvider(context, this, Folder.TYPE_FOLDER_VIDEO)

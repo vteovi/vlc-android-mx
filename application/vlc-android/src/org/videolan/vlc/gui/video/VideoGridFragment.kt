@@ -201,10 +201,16 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
             else arguments?.parcelable(KEY_FOLDER)
             val parentGroup = if (savedInstanceState != null) savedInstanceState.parcelable<VideoGroup>(KEY_GROUP)
                     else arguments?.parcelable(KEY_GROUP)
-            val grouping = if (parentGroup != null || folder != null) VideoGroupingType.NONE else when (Settings.getInstance(requireContext()).getString(KEY_GROUP_VIDEOS, null) ?: GROUP_VIDEOS_NAME) {
-                GROUP_VIDEOS_NONE -> VideoGroupingType.NONE
-                GROUP_VIDEOS_FOLDER -> VideoGroupingType.FOLDER
-                else -> VideoGroupingType.NAME
+            // Folder trees and video groups only exist in the VLC media library. While the fast
+            // list is enabled the page always opens flat, and both options are hidden from the
+            // display settings (see onOptionsItemSelected), so the system index is really used.
+            val storedGrouping = Settings.getInstance(requireContext()).getString(KEY_GROUP_VIDEOS, null)
+            val grouping = when {
+                parentGroup != null || folder != null -> VideoGroupingType.NONE
+                Settings.fastVideoScan -> VideoGroupingType.NONE
+                storedGrouping == GROUP_VIDEOS_FOLDER -> VideoGroupingType.FOLDER
+                storedGrouping == GROUP_VIDEOS_NAME -> VideoGroupingType.NAME
+                else -> VideoGroupingType.NONE
             }
             viewModel = getViewModel(grouping, folder, parentGroup)
             setDataObservers()
@@ -279,13 +285,15 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
                     viewModel.provider.canSortBy(it)
                 }
                 //Open the display settings Bottom sheet
+                // Both options need the media library, so they are hidden while the list is served
+                // by the system index (null = the dialog hides that section).
                 DisplaySettingsDialog.newInstance(
                     displayInCards = settings.getBoolean(KEY_VIDEOS_CARDS, true),
-                    onlyFavs = viewModel.provider.onlyFavorites,
+                    onlyFavs = if (viewModel.usesSystemIndex) null else viewModel.provider.onlyFavorites,
                     sorts = sorts,
                     currentSort = viewModel.provider.sort,
                     currentSortDesc = viewModel.provider.desc,
-                    videoGroup = if (viewModel.group == null && viewModel.folder == null) settings.getString(KEY_GROUP_VIDEOS, GROUP_VIDEOS_NAME) else null,
+                    videoGroup = if (viewModel.usesSystemIndex || viewModel.group != null || viewModel.folder != null) null else settings.getString(KEY_GROUP_VIDEOS, GROUP_VIDEOS_NAME),
                     showHiddenVideos = settings.getBoolean(SHOW_HIDDEN_VIDEOS, false),
                     defaultPlaybackActions = DefaultPlaybackActionMediaType.VIDEO.getDefaultPlaybackActions(settings),
                     defaultActionType = getString(DefaultPlaybackActionMediaType.VIDEO.title)
@@ -476,8 +484,21 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
         binding.empty = empty && !working
     }
 
-    override fun onRefresh() {
-        activity?.reloadLibrary()
+    override fun onRefresh() = refresh()
+
+    /**
+     * Pull-to-refresh and toolbar refresh share the same source, driven by the "fast video list"
+     * switch:
+     * - on (default): drop the cached cursor and re-read MediaStore, no storage walk at all
+     * - off: the list comes from the VLC media library again, so a refresh means a real rescan
+     */
+    override fun refresh() {
+        if (viewModel.usesSystemIndex) {
+            viewModel.refreshFromSystemIndex()
+        } else {
+            val host = activity
+            if (host != null) host.reloadLibrary() else super.refresh()
+        }
     }
 
     override fun setFabPlayVisibility(enable: Boolean) {
