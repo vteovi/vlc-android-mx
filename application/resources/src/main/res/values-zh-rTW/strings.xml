@@ -347,10 +347,6 @@
     <string name="screen_orientation_landscape_reverse">橫向反轉</string>
     <string name="screen_orientation_landscape_sensor">橫向（感應器）</string>
     <string name="screen_orientation_last_locked">最後鎖定方向</string>
-    <string name="auto_rotate_mode_title">自動旋轉方式</string>
-    <string name="auto_rotate_mode_summary">影片畫面未鎖定方向時，由誰決定螢幕方向</string>
-    <string name="auto_rotate_mode_system">跟隨系統旋轉鎖定</string>
-    <string name="auto_rotate_mode_sensor">始終跟隨裝置重力感應</string>
     <string name="enable_black_theme">黑色主題</string>
     <string name="dark_theme">深色佈景主題</string>
     <string name="theme_auto">自動佈景主題</string>
@@ -1467,6 +1463,7 @@
     <string name="mx_repeat">循環模式</string>
     <string name="mx_speed_pick">播放速度</string>
     <string name="mx_rotate">旋轉螢幕</string>
+    <string name="mx_rotate_long_press">螢幕方向，長按可選擇</string>
     <string name="mx_rotation_portrait">直向</string>
     <string name="mx_rotation_landscape">橫向</string>
     <string name="mx_ratio_auto">自動（最佳符合）</string>

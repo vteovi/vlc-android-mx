@@ -37,9 +37,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.tools.AUTO_ROTATE_MODE
 import org.videolan.tools.Settings
 import org.videolan.tools.Settings.autoRotateFollowsSystem
 import org.videolan.tools.Settings.playbackStatusBarMode
+import org.videolan.tools.putSingle
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.dialogs.JumpToTimeDialog
 import kotlin.math.abs
@@ -71,8 +73,13 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
          */
         private val RATIO_CYCLE = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8)
 
-        /** Sentinel used by the orientation menu to mean "follow the device sensor". */
-        private const val ORIENTATION_AUTO = -1
+        /** Sentinels used by the orientation menu for the two "automatic" modes. */
+        private const val ORIENTATION_AUTO_SYSTEM = -1
+        private const val ORIENTATION_AUTO_DEVICE = -2
+
+        /** Values stored in the AUTO_ROTATE_MODE preference for those two modes. */
+        private const val AUTO_MODE_SYSTEM = "system"
+        private const val AUTO_MODE_DEVICE = "sensor"
 
         /** Accent used to flag an active quick action, matching the speed label colour. */
         private val ACTIVE_TINT = Color.rgb(0xFF, 0x8C, 0x00)
@@ -242,6 +249,7 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         }
         // Single tap rotates 90 degrees, long press picks an explicit orientation.
         rotateButton.apply {
+            contentDescription = player.getString(R.string.mx_rotate_long_press)
             setOnClickListener { rotateScreen() }
             setOnLongClickListener {
                 showOrientationMenu()
@@ -643,22 +651,28 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         return "${parts[0].trim()}:${parts[1].trim()}"
     }
 
-    /** Long press on the rotate button: pin portrait or landscape, or follow the device again. */
+    /**
+     * Long press on the rotate button: the two automatic modes (system rotation lock / raw sensor)
+     * plus the two manual locks. Kept here rather than in the settings so the choice is one long
+     * press away while watching.
+     */
     private fun showOrientationMenu() {
         show()
         // Portrait / landscape use the sensor flavours: whichever way the phone is held is the
         // "right way up", so there is never an upside-down lock to escape from.
         val values = intArrayOf(
-                ORIENTATION_AUTO,
+                ORIENTATION_AUTO_SYSTEM,
+                ORIENTATION_AUTO_DEVICE,
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
         val labels = arrayOf(
-                player.getString(if (player.autoRotateFollowsSystem) R.string.mx_rotation_auto_system
-                                 else R.string.mx_rotation_auto_device),
+                player.getString(R.string.mx_rotation_auto_system),
+                player.getString(R.string.mx_rotation_auto_device),
                 player.getString(R.string.mx_rotation_portrait),
                 player.getString(R.string.mx_rotation_landscape))
-        val checked = if (!player.orientationMode.locked) 0
-        else values.indexOf(player.requestedOrientation).takeIf { it >= 0 } ?: 1
+        val checked = if (!player.orientationMode.locked) {
+            if (player.autoRotateFollowsSystem) 0 else 1
+        } else values.indexOf(player.requestedOrientation).takeIf { it >= 0 } ?: 2
         AlertDialog.Builder(player)
                 .setTitle(R.string.mx_orientation_menu)
                 .setSingleChoiceItems(labels, checked) { dialog, which ->
@@ -670,8 +684,11 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     private fun applyOrientation(value: Int, label: String) {
-        if (value == ORIENTATION_AUTO) {
-            // Release the lock so the activity follows the device again.
+        if (value == ORIENTATION_AUTO_SYSTEM || value == ORIENTATION_AUTO_DEVICE) {
+            // Remember the source for this and the next videos, then release any manual lock so
+            // getScreenOrientation() picks it up immediately.
+            Settings.getInstance(player).putSingle(AUTO_ROTATE_MODE,
+                    if (value == ORIENTATION_AUTO_SYSTEM) AUTO_MODE_SYSTEM else AUTO_MODE_DEVICE)
             player.orientationMode.locked = false
             player.requestedOrientation = player.getScreenOrientation(player.orientationMode)
         } else {

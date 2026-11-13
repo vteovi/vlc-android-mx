@@ -422,15 +422,6 @@
         <item>98</item>
     </string-array>
 
-    <string-array name="auto_rotate_mode_list">
-        <item>@string/auto_rotate_mode_system</item>
-        <item>@string/auto_rotate_mode_sensor</item>
-    </string-array>
-    <string-array name="auto_rotate_mode_values" translatable="false">
-        <item>system</item>
-        <item>sensor</item>
-    </string-array>
-
     <string-array name="metered_connection_list">
         <item>@string/metered_do_nothing</item>
         <item>@string/metered_stop</item>

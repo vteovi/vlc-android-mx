@@ -347,10 +347,6 @@
     <string name="screen_orientation_landscape_reverse">横向旋转 180°</string>
     <string name="screen_orientation_landscape_sensor">横向 (跟随传感器)</string>
     <string name="screen_orientation_last_locked">上次锁定的方向</string>
-    <string name="auto_rotate_mode_title">自动旋转方式</string>
-    <string name="auto_rotate_mode_summary">视频画面未锁定方向时，由谁决定屏幕方向</string>
-    <string name="auto_rotate_mode_system">跟随系统旋转锁定</string>
-    <string name="auto_rotate_mode_sensor">始终跟随设备重力感应</string>
     <string name="enable_black_theme">黑色主题</string>
     <string name="dark_theme">深色主题</string>
     <string name="theme_auto">自动主题</string>
@@ -1468,6 +1464,7 @@
     <string name="mx_repeat">循环模式</string>
     <string name="mx_speed_pick">播放速度</string>
     <string name="mx_rotate">旋转屏幕</string>
+    <string name="mx_rotate_long_press">屏幕方向，长按可选择</string>
     <string name="mx_rotation_portrait">竖屏</string>
     <string name="mx_rotation_landscape">横屏</string>
     <string name="mx_ratio_auto">自动（最佳适配）</string>

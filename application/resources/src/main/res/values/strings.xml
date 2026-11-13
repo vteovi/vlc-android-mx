@@ -372,10 +372,6 @@
     <string name="screen_orientation_landscape_reverse">Landscape reverse</string>
     <string name="screen_orientation_landscape_sensor">Landscape (sensor)</string>
     <string name="screen_orientation_last_locked">Last locked orientation</string>
-    <string name="auto_rotate_mode_title">Automatic rotation</string>
-    <string name="auto_rotate_mode_summary">Which source drives the orientation when the video screen is not locked</string>
-    <string name="auto_rotate_mode_system">Follow system rotation lock</string>
-    <string name="auto_rotate_mode_sensor">Always follow the device sensor</string>
     <string name="enable_black_theme">Black theme</string>
     <string name="dark_theme">Dark theme</string>
     <string name="theme_auto">Auto theme</string>
@@ -1508,6 +1504,7 @@
     <string name="mx_speed_default" translatable="false">1.0x</string>
     <string name="mx_speed_value" translatable="false">%1$.2fx</string>
     <string name="mx_rotate">Rotate screen</string>
+    <string name="mx_rotate_long_press">Screen orientation, long press to choose</string>
     <string name="mx_rotation_portrait">Portrait</string>
     <string name="mx_rotation_landscape">Landscape</string>
     <string name="mx_ratio_auto">Auto (best fit)</string>

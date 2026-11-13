@@ -39,13 +39,6 @@
                 android:key="screen_orientation"
                 android:summary="%s"
                 android:title="@string/screen_orientation"/>
-        <ListPreference
-                android:defaultValue="system"
-                android:entries="@array/auto_rotate_mode_list"
-                android:entryValues="@array/auto_rotate_mode_values"
-                android:key="auto_rotate_mode"
-                android:summary="@string/auto_rotate_mode_summary"
-                android:title="@string/auto_rotate_mode_title"/>
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/network">
