@@ -1907,7 +1907,7 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
         if (isInsideMxChrome(ev.rawX, ev.rawY)) return handled
         val chain = (rootView as? ViewGroup)?.let { describeTouchChain(it, ev.rawX, ev.rawY) }.orEmpty()
         Log.i(TAG, "Tap (${ev.rawX.toInt()}, ${ev.rawY.toInt()}) never reached the gesture layer:" +
-                " handled=$handled locked=$isLocked mxMode=$isMxControlsEnabled()" +
+                " handled=$handled locked=$isLocked mxMode=${isMxControlsEnabled()}" +
                 " chromeVisible=${::mxGestureDelegate.isInitialized && mxGestureDelegate.isControlsVisible()}" +
                 " chain=[$chain]")
         return handled
