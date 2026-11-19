@@ -86,10 +86,27 @@ private fun View.isStatusBarHidden(): Boolean {
 fun View.resolveTopSystemBarInset(reportedTop: Int, edgeToEdge: Boolean): Int {
     if (reportedTop > 0) return reportedTop
     if (!edgeToEdge || isStatusBarHidden()) return reportedTop
+    return statusBarInsetOrFallback(reportedTop)
+}
+
+/**
+ * Same fallback, for callers that know by themselves whether the status bar is drawn over their
+ * content. The video player is such a caller: it toggles the system bar with the chrome, so it
+ * cannot rely on [isStatusBarHidden] (some ROMs also report the bar as invisible while drawing
+ * it, which would swallow the fallback).
+ */
+fun View.statusBarInsetOrFallback(reportedTop: Int): Int {
+    if (reportedTop > 0) return reportedTop
     val height = resources.statusBarHeight()
-    Log.i(TAG, "Status bar inset reported as 0, using $height px instead")
+    Log.i(TAG, "Status bar inset reported as 0 while the bar is drawn, using $height px instead")
     return height
 }
+
+/**
+ * Height the platform gives the status bar window. Use it as a floor for the reported inset: it is
+ * the value the framework sizes the bar with, so a smaller reported inset cannot be the truth.
+ */
+fun View.declaredStatusBarHeight(): Int = resources.statusBarHeight()
 
 /**
  * Safety net for the same vendor bug: the insets listener may never be called. Once the content

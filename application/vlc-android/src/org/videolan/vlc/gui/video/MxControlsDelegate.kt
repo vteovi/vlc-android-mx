@@ -23,6 +23,7 @@ import android.os.Handler
 import android.os.Looper
 import android.support.v4.media.session.PlaybackStateCompat
 import android.text.InputType
+import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -41,6 +42,8 @@ import org.videolan.tools.Settings.autoRotateFollowsSystem
 import org.videolan.tools.putSingle
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.dialogs.JumpToTimeDialog
+import org.videolan.vlc.gui.helpers.declaredStatusBarHeight
+import org.videolan.vlc.gui.helpers.statusBarInsetOrFallback
 import kotlin.math.abs
 
 /**
@@ -54,6 +57,8 @@ import kotlin.math.abs
 class MxControlsDelegate(private val player: VideoPlayerActivity) {
 
     companion object {
+        private const val TAG = "VLC/MxControls"
+
         /** Speeds offered by the MX speed sheet. */
         private val SPEEDS = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
 
@@ -146,8 +151,12 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         // This layer is a sibling of the stock HUD container, so it never receives the padding
         // that fitsSystemWindows gives the stock overlay: track the status bar height ourselves.
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-            if (top > 0 && top != statusBarInset) {
+            // A cutout can be taller than the status bar, and the title must clear both.
+            val top = maxOf(
+                    insets.getInsets(WindowInsetsCompat.Type.statusBars()).top,
+                    insets.getInsets(WindowInsetsCompat.Type.displayCutout()).top
+            )
+            if (top != statusBarInset) {
                 statusBarInset = top
                 applyStatusBarInset()
             }
@@ -168,7 +177,8 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
     }
 
     private fun applyStatusBarInset() {
-        val target = topBarBasePaddingTop + if (statusBarShown) statusBarInset else 0
+        val inset = resolvedStatusBarInset()
+        val target = topBarBasePaddingTop + inset
         if (topBar.paddingTop != target) {
             topBar.setPadding(topBar.paddingLeft, target, topBar.paddingRight, topBar.paddingBottom)
             // The title bar grows, so the action row anchored under it has to move too.
@@ -176,12 +186,31 @@ class MxControlsDelegate(private val player: VideoPlayerActivity) {
         }
         // Keep the gradient taller than the chrome it has to darken, so it always reaches the
         // status bar icons on devices with a tall inset.
-        val gradientHeight = maxOf(dpToPx(150), topBar.height + statusBarInset)
+        val gradientHeight = maxOf(dpToPx(150), topBar.height + inset)
         val params = topGradient.layoutParams
         if (params != null && params.height != gradientHeight) {
             params.height = gradientHeight
             topGradient.layoutParams = params
         }
+    }
+
+    /**
+     * Height the title bar has to be pushed down while the system bar is on screen.
+     *
+     * The player knows whether the bar is drawn (it toggles it with the chrome), so it does not
+     * have to guess from the window flags. A few ROMs report a zero — or a too small — status bar
+     * inset; in both cases the title would slide under the clock and battery icons, and the system
+     * bar window swallows the taps, so the platform-declared height is used as a floor.
+     */
+    private fun resolvedStatusBarInset(): Int {
+        if (!statusBarShown) return 0
+        val declared = root.declaredStatusBarHeight()
+        if (statusBarInset <= 0) return root.statusBarInsetOrFallback(statusBarInset)
+        if (statusBarInset < declared) {
+            Log.i(TAG, "Status bar inset $statusBarInset px smaller than the declared $declared px, using the latter")
+            return declared
+        }
+        return statusBarInset
     }
 
     private fun dpToPx(dp: Int): Int =
