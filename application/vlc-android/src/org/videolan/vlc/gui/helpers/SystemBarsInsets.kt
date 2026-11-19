@@ -23,12 +23,15 @@ import android.app.Activity
 import android.content.ContextWrapper
 import android.content.res.Resources
 import android.os.Build
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
+
+private const val TAG = "VLC/SystemBarsInsets"
 
 /** Used when the platform does not expose any status bar height at all. */
 private const val FALLBACK_STATUS_BAR_DP = 24
@@ -83,7 +86,9 @@ private fun View.isStatusBarHidden(): Boolean {
 fun View.resolveTopSystemBarInset(reportedTop: Int, edgeToEdge: Boolean): Int {
     if (reportedTop > 0) return reportedTop
     if (!edgeToEdge || isStatusBarHidden()) return reportedTop
-    return resources.statusBarHeight()
+    val height = resources.statusBarHeight()
+    Log.i(TAG, "Status bar inset reported as 0, using $height px instead")
+    return height
 }
 
 /**
@@ -97,7 +102,9 @@ fun View.ensureTopSystemBarInset(edgeToEdge: Boolean) {
     doOnLayout { view ->
         val content = view as ViewGroup
         view.post {
-            if (content.missingTopSystemBarInset() <= 0) return@post
+            val missing = content.missingTopSystemBarInset()
+            if (missing <= 0) return@post
+            Log.i(TAG, "Content still ${missing}px under the status bar, requesting new insets")
             ViewCompat.requestApplyInsets(view.rootView)
         }
     }
