@@ -826,10 +826,13 @@ class VideoGridFragment : MediaBrowserFragment<VideosViewModel>(), SwipeRefreshL
                         PlaylistManager.playingAsAudio = true
                     }
                     when(DefaultPlaybackActionMediaType.VIDEO.getCurrentPlaybackAction(settings)) {
-                        DefaultPlaybackAction.PLAY -> viewModel.playVideo(activity, item, position, forceAudio = castAsAudio)
                         DefaultPlaybackAction.ADD_TO_QUEUE -> MediaUtils.appendMedia(activity, item)
                         DefaultPlaybackAction.INSERT_NEXT -> MediaUtils.insertNext(activity, item)
-                        else  -> viewModel.playVideo(activity, item, position, forceAll = true, forceAudio = castAsAudio)
+                        // PLAY (and the "ask me" default) queue the whole list and start on the
+                        // tapped item. openMedia() would leave a one-item queue, so the player's
+                        // previous / next buttons had nothing to jump to when a video was opened
+                        // from this list. Same convention as the file browser (playFolderFrom).
+                        else -> viewModel.playVideo(activity, item, position, forceAll = true, forceAudio = castAsAudio)
                     }
                 }
             }

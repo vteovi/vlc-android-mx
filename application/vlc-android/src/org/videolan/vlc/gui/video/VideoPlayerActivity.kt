@@ -949,10 +949,19 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
             // Draw edge to edge, then let the status bar float over the picture: the MX top
             // gradient reaches the very top of the screen so the icons stay readable.
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            decor.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            // The navigation bar stays hidden, but it has to hide *transiently*. Plain
+            // HIDE_NAVIGATION (no immersive flag) is the legacy "lean back" state: the bar is
+            // hidden yet still waits to be revealed, so the system grabs the next touch to bring
+            // it up for a second and swallows that touch. On Android 8/9 that made every swipe
+            // and double tap do nothing while the chrome was on screen — the player simply never
+            // received the events. IMMERSIVE_STICKY keeps the events and only flashes the bar.
+            // The status bar is not affected: neither FLAG_FULLSCREEN nor FULLSCREEN is set here.
+            var flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
                     View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            if (VlcMigrationHelper.isKitKatOrLater) flags = flags or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            decor.systemUiVisibility = flags
         } else {
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             var flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
