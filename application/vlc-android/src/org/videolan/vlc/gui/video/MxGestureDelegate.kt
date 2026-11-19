@@ -270,6 +270,11 @@ class MxGestureDelegate(
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            // Helps tell "the touch never got here" apart from "it got here and was dropped".
+            // Debug level: two taps in a row must not flood a normal logcat.
+            Log.d(TAG, "down x=${event.x.toInt()} y=${event.y.toInt()} chrome=${controls.isVisible()}")
+        }
         if (!enabled) return false
         // PiP / popup window: let the system and the stock popup buttons handle the taps.
         if (player.service?.isInPiPMode?.value == true) return false

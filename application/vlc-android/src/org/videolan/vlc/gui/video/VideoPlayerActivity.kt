@@ -59,6 +59,7 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnClickListener
 import android.view.View.OnLongClickListener
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.Animation
 import android.view.animation.AnimationSet
@@ -268,6 +269,8 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
 
     private var isDragging: Boolean = false
     var isShowing: Boolean = false
+    /** Set as soon as the gesture layer receives an ACTION_DOWN; see [dispatchTouchEvent]. */
+    private var gestureSawDown = false
     var isShowingDialog: Boolean = false
     internal var isLoading: Boolean = false
         private set
@@ -1876,11 +1879,79 @@ open class VideoPlayerActivity : AppCompatActivity(), PlaybackService.Callback, 
     }
 
     /**
+     * Diagnostic aid for "gestures stop working while the controls are on screen".
+     *
+     * Gestures are handled in [onTouchEvent], which the framework only calls when no view consumed
+     * the touch. That makes them silently depend on the whole view tree passing the event along, so
+     * a single visible view above the video is enough to kill every swipe and double tap.
+     *
+     * When a tap never reaches the gesture layer this logs the view chain that sits under the
+     * finger, which names the culprit directly. No line at all means the window never got the
+     * event either (the system bar window took it, typically the navigation bar of an immersive
+     * window being revealed by the first touch).
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) gestureSawDown = false
+        val handled = super.dispatchTouchEvent(ev)
+        if (ev.actionMasked != MotionEvent.ACTION_DOWN || gestureSawDown) return handled
+        // A tap on the controls themselves is meant to be consumed by their buttons.
+        if (isInsideMxChrome(ev.rawX, ev.rawY)) return handled
+        val chain = (rootView as? ViewGroup)?.let { describeTouchChain(it, ev.rawX, ev.rawY) }.orEmpty()
+        Log.i(TAG, "Tap (${ev.rawX.toInt()}, ${ev.rawY.toInt()}) never reached the gesture layer:" +
+                " handled=$handled locked=$isLocked mxMode=$isMxControlsEnabled()" +
+                " chromeVisible=${::mxGestureDelegate.isInitialized && mxGestureDelegate.isControlsVisible()}" +
+                " chain=[$chain]")
+        return handled
+    }
+
+    private fun isInsideMxChrome(screenX: Float, screenY: Float): Boolean {
+        val location = IntArray(2)
+        for (id in intArrayOf(R.id.mx_top_bar, R.id.mx_top_actions, R.id.mx_bottom_bar)) {
+            val view = findViewById<View>(id) ?: continue
+            if (view.visibility != View.VISIBLE) continue
+            view.getLocationOnScreen(location)
+            if (screenX >= location[0] && screenX < location[0] + view.width &&
+                    screenY >= location[1] && screenY < location[1] + view.height) return true
+        }
+        return false
+    }
+
+    /** Deepest chain of visible views containing the point, with the clickable flag on each. */
+    private fun describeTouchChain(root: ViewGroup, screenX: Float, screenY: Float): String {
+        val path = StringBuilder()
+        val location = IntArray(2)
+        var group: ViewGroup? = root
+        var depth = 0
+        while (group != null && depth++ < 8) {
+            var hit: View? = null
+            for (i in group.childCount - 1 downTo 0) {
+                val child = group.getChildAt(i)
+                if (child.visibility != View.VISIBLE) continue
+                child.getLocationOnScreen(location)
+                if (screenX >= location[0] && screenX < location[0] + child.width &&
+                        screenY >= location[1] && screenY < location[1] + child.height) {
+                    hit = child
+                    break
+                }
+            }
+            val node = hit ?: break
+            path.append('/').append(node.javaClass.simpleName)
+            if (node.id != View.NO_ID) {
+                runCatching { path.append('#').append(resources.getResourceEntryName(node.id)) }
+            }
+            if (node.isClickable) path.append("(clickable)")
+            group = node as? ViewGroup
+        }
+        return path.toString().ifEmpty { "none" }
+    }
+
+    /**
      * show/hide the overlay
      */
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (service == null) return false
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) gestureSawDown = true
         return if (isMxControlsEnabled()) {
             mxGestureDelegate.onTouchEvent(event)
         } else {
