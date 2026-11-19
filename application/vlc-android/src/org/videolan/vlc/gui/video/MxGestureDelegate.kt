@@ -290,7 +290,7 @@ class MxGestureDelegate(
             }
             MotionEvent.ACTION_MOVE -> if (!multiPointer) handleMove(event)
             MotionEvent.ACTION_UP -> handleUp(event)
-            MotionEvent.ACTION_CANCEL -> handleCancel()
+            MotionEvent.ACTION_CANCEL -> handleCancel(event)
         }
         return true
     }
@@ -332,14 +332,18 @@ class MxGestureDelegate(
         }
         if (!moved) return
         if (gesture == GESTURE_NONE) {
+            val absDx = abs(dx)
+            val absDy = abs(dy)
             gesture = when {
-                abs(dx) > abs(dy) * 1.2f -> if (allowSwipeSeek) GESTURE_SEEK else GESTURE_NONE
-                abs(dy) > abs(dx) * 1.2f -> when {
-                    allowLockGesture && startY > screenHeight * 0.88f && dy < -touchSlop -> GESTURE_LOCK
-                    startX < screenWidth / 2f -> GESTURE_BRIGHTNESS
-                    else -> GESTURE_VOLUME
-                }
-                else -> GESTURE_NONE
+                absDx > absDy * 1.2f -> if (allowSwipeSeek) GESTURE_SEEK else GESTURE_NONE
+                absDy > absDx * 1.2f -> verticalGesture(dy)
+                // Diagonal drag: a finger that started right at the screen edge is often slanted,
+                // so dx and dy stay close to 1:1 and neither branch above matches. The gesture
+                // used to sit in that dead zone for its whole life and do nothing at all, which
+                // felt like "the edges sometimes ignore a vertical swipe". Pick the dominant
+                // direction instead, biased towards vertical since that is what the edges are for.
+                absDy >= absDx -> verticalGesture(dy)
+                else -> if (allowSwipeSeek) GESTURE_SEEK else GESTURE_NONE
             }
         }
         when (gesture) {
@@ -349,6 +353,13 @@ class MxGestureDelegate(
             GESTURE_LOCK -> showPanel(R.drawable.ic_lock_player, player.getString(R.string.mx_locked),
                     player.getString(R.string.mx_release_to_lock), 100, 100)
         }
+    }
+
+    /** Vertical drag: swipe up from the bottom edge locks, left half is brightness, right is volume. */
+    private fun verticalGesture(dy: Float): Int = when {
+        allowLockGesture && startY > screenHeight * 0.88f && dy < -touchSlop -> GESTURE_LOCK
+        startX < screenWidth / 2f -> GESTURE_BRIGHTNESS
+        else -> GESTURE_VOLUME
     }
 
     private fun updateSeekPreview(dx: Float) {
@@ -477,7 +488,13 @@ class MxGestureDelegate(
         resetPreview()
     }
 
-    private fun handleCancel() {
+    private fun handleCancel(event: MotionEvent) {
+        // The system steals a gesture that starts inside its own edge-back area (the ROM decides
+        // this, we only see the CANCEL). Logging the distance from the edge and what we had
+        // recognised so far is the only way to tell that apart from a real app-side miss.
+        val edge = minOf(event.x, screenWidth - event.x)
+        Log.i(TAG, "Gesture cancelled: gesture=$gesture dx=${event.x - startX} dy=${event.y - startY} " +
+                "fromEdge=${edge}px width=${screenWidth}px")
         cancelFastPlay()
         if (fastPlayActive) {
             player.service?.setRate(savedRate, false)
@@ -485,12 +502,19 @@ class MxGestureDelegate(
             player.touchDelegate.hideFastPlay()
         }
         abortScreenSeek()
+        val wasAdjusting = gesture == GESTURE_BRIGHTNESS || gesture == GESTURE_VOLUME
         gesture = GESTURE_NONE
         multiPointer = false
         tapCount = 0
-        hidePanel()
         resetPreview()
-        controls.show()
+        if (wasAdjusting) {
+            // The level was already applied; keep the readout up for a moment so the user still
+            // sees where it landed, and do not flash the chrome over it afterwards.
+            hidePanelDelayed()
+        } else {
+            hidePanel()
+            controls.show()
+        }
     }
 
     private fun handleLockedTouch(event: MotionEvent) {
