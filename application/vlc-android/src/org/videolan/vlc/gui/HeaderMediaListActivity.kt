@@ -101,6 +101,7 @@ import org.videolan.vlc.gui.helpers.UiTools
 import org.videolan.vlc.gui.helpers.UiTools.addToPlaylist
 import org.videolan.vlc.gui.helpers.UiTools.createShortcut
 import org.videolan.vlc.gui.helpers.UiTools.showPinIfNeeded
+import org.videolan.vlc.gui.helpers.resolveTopSystemBarInset
 import org.videolan.vlc.gui.view.RecyclerSectionItemDecoration
 import org.videolan.vlc.interfaces.Filterable
 import org.videolan.vlc.interfaces.IEventsHandler
@@ -169,7 +170,7 @@ open class HeaderMediaListActivity : AudioPlayerContainerActivity(), IEventsHand
                 bottom = bars.bottom,
             )
 
-            setLayoutMarginTop(binding.mainToolbar, bars.top)
+            setLayoutMarginTop(binding.mainToolbar, v.resolveTopSystemBarInset(bars.top, true))
             WindowInsetsCompat.CONSUMED
         }
 

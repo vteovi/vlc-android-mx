@@ -96,6 +96,7 @@ import org.videolan.vlc.gui.helpers.PlayerKeyListenerDelegate
 import org.videolan.vlc.gui.helpers.PlayerOptionsDelegateCallback
 import org.videolan.vlc.gui.helpers.UiTools
 import org.videolan.vlc.gui.helpers.UiTools.isTablet
+import org.videolan.vlc.gui.helpers.resolveTopSystemBarInset
 import org.videolan.vlc.interfaces.IRefreshable
 import org.videolan.vlc.media.PlaylistManager
 import org.videolan.vlc.media.ResumeStatus
@@ -204,18 +205,21 @@ open class AudioPlayerContainerActivity : BaseActivity(), KeycodeListener, Sched
         registerLiveData()
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { view, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val insets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val top = view.resolveTopSystemBarInset(insets.top, this@AudioPlayerContainerActivity is MainActivity || isEdgeToEdge)
             view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                 if (isTransparent()) {
                     val toolbarLayoutParams = findViewById<Toolbar>(R.id.main_toolbar).layoutParams as ViewGroup.MarginLayoutParams
-                    toolbarLayoutParams.topMargin = insets.top
+                    toolbarLayoutParams.topMargin = top
                 }
                 if (this@AudioPlayerContainerActivity is MainActivity) {
                     leftMargin = insets.left
                     rightMargin = insets.right
                     if (isTablet()) bottomMargin = insets.bottom
-                    topMargin = insets.top
-                    topInset = insets.top
+                    topMargin = top
+                    topInset = top
                     val bottomNavigationView = findViewById<BottomNavigationView?>(R.id.navigation)
                     bottomNavigationView?.setPadding(bottomNavigationView.paddingLeft, bottomNavigationView.paddingTop, bottomNavigationView.paddingRight, insets.bottom)
                     bottomInset = insets.bottom

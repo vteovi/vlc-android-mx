@@ -39,6 +39,8 @@ import org.videolan.tools.setGone
 import org.videolan.vlc.R
 import org.videolan.vlc.gui.helpers.UiTools
 import org.videolan.vlc.gui.helpers.applyTheme
+import org.videolan.vlc.gui.helpers.ensureTopSystemBarInset
+import org.videolan.vlc.gui.helpers.resolveTopSystemBarInset
 import org.videolan.vlc.gui.helpers.hf.PinCodeDelegate
 import org.videolan.vlc.gui.helpers.hf.checkPIN
 import org.videolan.vlc.media.MediaUtils
@@ -94,7 +96,7 @@ abstract class BaseActivity : AppCompatActivity() {
             )
             v.updatePadding(
                 left = bars.left,
-                top = bars.top,
+                top = v.resolveTopSystemBarInset(bars.top, true),
                 right = bars.right,
                 bottom = bars.bottom,
             )
@@ -207,6 +209,9 @@ abstract class BaseActivity : AppCompatActivity() {
             findViewById<View>(R.id.toolbar_icon).setGone()
             findViewById<View>(R.id.toolbar_vlc_title).setGone()
         }
+        // A few ROMs never report a usable status bar inset, which leaves the toolbar underneath
+        // the status bar and its action buttons unreachable. Fix it once the content is laid out.
+        findViewById<View>(android.R.id.content)?.ensureTopSystemBarInset(isEdgeToEdge)
     }
 
     override fun getDelegate() = baseContextWrappingDelegate

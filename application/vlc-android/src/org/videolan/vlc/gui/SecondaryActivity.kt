@@ -64,6 +64,7 @@ import org.videolan.vlc.gui.browser.KEY_MEDIA
 import org.videolan.vlc.gui.browser.MLStorageBrowserFragment
 import org.videolan.vlc.gui.browser.NetworkBrowserFragment
 import org.videolan.vlc.gui.helpers.UiTools
+import org.videolan.vlc.gui.helpers.resolveTopSystemBarInset
 import org.videolan.vlc.gui.network.MRLPanelFragment
 import org.videolan.vlc.gui.video.VideoGridFragment
 import org.videolan.vlc.reloadLibrary
@@ -97,7 +98,7 @@ class SecondaryActivity : ContentActivity(), IDialogManager {
             )
             v.updatePadding(
                 left = bars.left,
-                top = bars.top,
+                top = v.resolveTopSystemBarInset(bars.top, true),
                 right = bars.right,
                 bottom = bars.bottom,
             )
